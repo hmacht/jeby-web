@@ -11,8 +11,13 @@ export interface MarineConditions {
 	bumpyScore: number | null; // 0 - 100
 }
 
+export interface ForecastPeriod {
+	header: string;
+	text: string;
+}
+
 export interface ForecastSummary {
-	today: string;
+	periods: ForecastPeriod[];
 	full: string;
 }
 

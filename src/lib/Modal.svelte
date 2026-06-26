@@ -29,7 +29,7 @@
 	>
 		<!-- Panel -->
 		<div
-			class="relative max-h-[85vh] w-full max-w-2xl overflow-hidden rounded-2xl border border-neutral-800 bg-background shadow-2xl"
+			class="relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-neutral-800 bg-background shadow-2xl"
 			role="dialog"
 			aria-modal="true"
 			aria-label={title}
@@ -51,12 +51,14 @@
 			</button>
 
 			{#if title}
-				<h2 class="border-b border-neutral-800 px-6 py-4 pr-14 text-lg font-semibold text-white">
+				<h2
+					class="shrink-0 border-b border-neutral-800 px-6 py-4 pr-14 text-lg font-semibold text-white"
+				>
 					{title}
 				</h2>
 			{/if}
 
-			<div class="max-h-[85vh] overflow-y-auto px-6 py-5">
+			<div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
 				{@render children()}
 			</div>
 		</div>
