@@ -136,9 +136,7 @@
 	<header class="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
 		<div>
 			<div>
-				<h1 class="text-2xl font-medium tracking-tight sm:text-3xl">
-					Ahoy, Captain Macht
-				</h1>
+				<h1 class="text-2xl font-medium tracking-tight sm:text-3xl">Captain Macht</h1>
 				<div class="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-lg text-neutral-500">
 					<span>{data.location}</span>
 					<span>{when}</span>
@@ -212,9 +210,7 @@
 						onclick={() => (showDisclaimers = true)}
 					>
 						<div class="text-6xl font-normal leading-none">{score ?? '—'}</div>
-						<div
-							class="mt-1 text-sm text-neutral-400 transition group-hover:text-neutral-200"
-						>
+						<div class="mt-1 text-sm text-neutral-400 transition group-hover:text-neutral-200">
 							BumpyScore™
 						</div>
 
