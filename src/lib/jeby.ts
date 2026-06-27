@@ -1,5 +1,10 @@
 // Types and helpers for talking to the jeby-go API.
 
+export interface BumpyScore {
+	score: number | null; // 0 - 100
+	disclaimers: string[];
+}
+
 export interface MarineConditions {
 	waveHeight: number | null; // meters
 	wavePeriod: number | null; // seconds
@@ -8,7 +13,7 @@ export interface MarineConditions {
 	windDirectionDegrees: number | null;
 	windDirectionCardinal: string | null;
 	waterTemp: number | null; // degC
-	bumpyScore: number | null; // 0 - 100
+	bumpyScore: BumpyScore | null;
 }
 
 export interface ForecastPeriod {

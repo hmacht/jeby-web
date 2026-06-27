@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { navigating } from '$app/state';
+	import { navigating, page } from '$app/state';
 	import AlertBanner from '$lib/AlertBanner.svelte';
 	import Modal from '$lib/Modal.svelte';
 	import WaveDiagram from '$lib/WaveDiagram.svelte';
 	import squiggle from '$lib/assets/squiggle.png';
+	import noaaLogo from '$lib/assets/NOAA-color-logo.png';
+	import ogImage from '$lib/assets/jeyb-open-web.png';
 	import ZoomableImage from '$lib/ZoomableImage.svelte';
 	import { cToF, metersToFeet, mpsToMph } from '$lib/jeby';
 	import { onMount } from 'svelte';
@@ -13,6 +15,7 @@
 	let { data }: { data: PageData } = $props();
 
 	let showForecast = $state(false);
+	let showDisclaimers = $state(false);
 
 	// Re-pull fresh NOAA data on an interval. invalidateAll() alone doesn't set
 	// `navigating`, so track our own flag for the loading indicator.
@@ -56,14 +59,6 @@
 		}
 	}
 
-	// Greeting based on the time of day.
-	const greeting = $derived.by(() => {
-		const hour = new Date(data.generatedAt).getHours();
-		if (hour < 12) return 'Good Morning';
-		if (hour < 17) return 'Good Afternoon';
-		return 'Good Evening';
-	});
-
 	const when = $derived(
 		new Date(data.generatedAt).toLocaleString('en-US', {
 			weekday: 'long',
@@ -76,7 +71,8 @@
 	const seas = $derived(
 		conditions?.waveHeight == null ? null : Math.round(metersToFeet(conditions.waveHeight))
 	);
-	const score = $derived(conditions?.bumpyScore ?? null);
+	const score = $derived(conditions?.bumpyScore?.score ?? null);
+	const disclaimers = $derived(conditions?.bumpyScore?.disclaimers ?? []);
 
 	// Gradient stops used by the bumpy-score bar (evenly spaced 0 → 100).
 	const SCORE_STOPS = ['#4ade80', '#a3e635', '#facc15', '#fb923c', '#ef4444', '#a855f7'];
@@ -108,10 +104,31 @@
 	// Number → string helpers that tolerate missing data.
 	const num = (v: number | null | undefined, fn: (n: number) => number, digits = 0) =>
 		v == null ? '—' : fn(v).toFixed(digits);
+
+	// Social share metadata.
+	const TITLE = 'Can Jeby Go Out?';
+	const DESCRIPTION = $derived(`Live marine conditions and a BumpyScore™ for ${data.location}.`);
+	const ogImageUrl = $derived(new URL(ogImage, page.url.origin).href);
 </script>
 
 <svelte:head>
-	<title>Can Jeby Go Out?</title>
+	<title>{TITLE}</title>
+	<meta name="description" content={DESCRIPTION} />
+
+	<!-- Open Graph -->
+	<meta property="og:type" content="website" />
+	<meta property="og:title" content={TITLE} />
+	<meta property="og:description" content={DESCRIPTION} />
+	<meta property="og:image" content={ogImageUrl} />
+	<meta property="og:image:width" content="1920" />
+	<meta property="og:image:height" content="1080" />
+	<meta property="og:url" content={page.url.href} />
+
+	<!-- Twitter -->
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content={TITLE} />
+	<meta name="twitter:description" content={DESCRIPTION} />
+	<meta name="twitter:image" content={ogImageUrl} />
 </svelte:head>
 
 <main class="min-h-screen bg-background px-6 pb-24 pt-10 text-white sm:px-12 lg:px-16">
@@ -120,7 +137,7 @@
 		<div>
 			<div>
 				<h1 class="text-2xl font-medium tracking-tight sm:text-3xl">
-					{greeting}, Captain Macht
+					Ahoy, Captain Macht
 				</h1>
 				<div class="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-lg text-neutral-500">
 					<span>{data.location}</span>
@@ -187,9 +204,37 @@
 
 		<!-- Bumpy Score + Forecast: stacked on mobile, side by side on desktop -->
 		<div class="flex flex-col gap-6 lg:flex-row">
-			<div class="w-fit shrink-0 text-left lg:text-center">
-				<div class="text-6xl font-normal leading-none">{score ?? '—'}</div>
-				<div class="mt-1 text-sm text-neutral-400">BumpyScore™</div>
+			<div class="w-fit shrink-0">
+				{#if disclaimers.length}
+					<button
+						type="button"
+						class="group relative block text-left lg:text-center"
+						onclick={() => (showDisclaimers = true)}
+					>
+						<div class="text-6xl font-normal leading-none">{score ?? '—'}</div>
+						<div
+							class="mt-1 text-sm text-neutral-400 transition group-hover:text-neutral-200"
+						>
+							BumpyScore™
+						</div>
+
+						<!-- Hover tooltip -->
+						<div
+							class="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-64 -translate-y-1 rounded-lg border border-border bg-surface p-3 text-left text-xs leading-relaxed text-neutral-300 opacity-0 shadow-lg transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100"
+						>
+							<ul class="list-disc space-y-1 pl-4">
+								{#each disclaimers as d (d)}
+									<li>{d}</li>
+								{/each}
+							</ul>
+						</div>
+					</button>
+				{:else}
+					<div class="text-left lg:text-center">
+						<div class="text-6xl font-normal leading-none">{score ?? '—'}</div>
+						<div class="mt-1 text-sm text-neutral-400">BumpyScore™</div>
+					</div>
+				{/if}
 			</div>
 			<div class="hidden w-px self-stretch bg-neutral-700 lg:block"></div>
 			<div class="max-w-md">
@@ -302,7 +347,8 @@
 <footer
 	class="fixed inset-x-0 bottom-0 flex items-center justify-between gap-2 border-t border-border bg-surface px-4 py-2 text-xs text-neutral-500 sm:px-6 sm:text-sm"
 >
-	<p>
+	<p class="flex items-center gap-2">
+		<img src={noaaLogo} alt="" aria-hidden="true" class="h-5 w-5" />
 		Data from
 		<a
 			href="https://www.ndbc.noaa.gov/station_page.php?station=44020"
@@ -335,4 +381,12 @@
 			</div>
 		{/each}
 	</div>
+</Modal>
+
+<Modal bind:open={showDisclaimers} title="Today's BumpyScore™ Disclaimers">
+	<ul class="list-disc space-y-2 pl-5 text-sm leading-relaxed text-neutral-300">
+		{#each disclaimers as d (d)}
+			<li>{d}</li>
+		{/each}
+	</ul>
 </Modal>

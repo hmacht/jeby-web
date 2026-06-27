@@ -1,10 +1,12 @@
 // Server-only client for the jeby-go backend API.
-// Lives under $lib/server so the private API URL never reaches the browser.
+// Lives under $lib/server so the private API URL/key never reach the browser.
 
 import { env } from '$env/dynamic/private';
 import type { Alert, BuoyImages, ForecastSummary, MarineConditions } from '$lib/jeby';
 
 const API_BASE = env.JEBY_API_URL ?? 'http://localhost:8080';
+const API_ROOT = `${API_BASE}/api/v1`;
+const API_KEY = env.JEBY_API_KEY ?? '';
 
 type Fetch = typeof globalThis.fetch;
 
@@ -12,7 +14,9 @@ type Fetch = typeof globalThis.fetch;
 // single flaky endpoint never takes down the whole page.
 async function getJSON<T>(fetch: Fetch, path: string): Promise<T | null> {
 	try {
-		const res = await fetch(`${API_BASE}${path}`);
+		const res = await fetch(`${API_ROOT}${path}`, {
+			headers: { 'X-API-Key': API_KEY }
+		});
 		if (!res.ok) return null;
 		return (await res.json()) as T;
 	} catch {
@@ -32,17 +36,17 @@ export function createJebyClient(fetch: Fetch) {
 		conditions(buoyId: string, boat: BoatParams) {
 			return getJSON<MarineConditions>(
 				fetch,
-				`/marine/${buoyId}/conditions?boatLength=${boat.length}&boatWeight=${boat.weight}`
+				`/marine/buoys/${buoyId}/conditions?boatLength=${boat.length}&boatWeight=${boat.weight}`
 			);
 		},
 		images(buoyId: string) {
-			return getJSON<BuoyImages>(fetch, `/marine/${buoyId}/images`);
+			return getJSON<BuoyImages>(fetch, `/marine/buoys/${buoyId}/images`);
 		},
-		forecastSummary(zone: string) {
-			return getJSON<ForecastSummary>(fetch, `/marine/forecast/summary?zone=${zone}`);
+		forecastSummary(zoneId: string) {
+			return getJSON<ForecastSummary>(fetch, `/marine/zones/${zoneId}/forecast/summary`);
 		},
-		activeAlerts(zone: string) {
-			return getJSON<Alert[]>(fetch, `/alerts/active?zone=${zone}`);
+		activeAlerts(zoneId: string) {
+			return getJSON<Alert[]>(fetch, `/marine/zones/${zoneId}/alerts/active`);
 		}
 	};
 }
