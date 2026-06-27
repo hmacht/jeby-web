@@ -106,7 +106,7 @@
 		v == null ? '—' : fn(v).toFixed(digits);
 
 	// Social share metadata.
-	const TITLE = 'Can Jeby Go Out?';
+	const TITLE = 'MV Buoy';
 	const DESCRIPTION = $derived(`Live marine conditions and a BumpyScore™ for ${data.location}.`);
 	const ogImageUrl = $derived(new URL(ogImage, page.url.origin).href);
 </script>
