@@ -1,9 +1,5 @@
 <script lang="ts">
-	let {
-		src,
-		alt,
-		class: className = ''
-	}: { src: string; alt: string; class?: string } = $props();
+	let { src, alt, class: className = '' }: { src: string; alt: string; class?: string } = $props();
 
 	let open = $state(false);
 	let zoomed = $state(false);
@@ -24,7 +20,12 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<button type="button" class="block w-full cursor-zoom-in" aria-label="Expand image" onclick={openViewer}>
+<button
+	type="button"
+	class="block w-full cursor-zoom-in"
+	aria-label="Expand image"
+	onclick={openViewer}
+>
 	<img {src} {alt} class={className} />
 </button>
 
@@ -46,7 +47,12 @@
 			onclick={close}
 		>
 			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-				<path d="M6 6 18 18M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+				<path
+					d="M6 6 18 18M18 6 6 18"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+				/>
 			</svg>
 		</button>
 

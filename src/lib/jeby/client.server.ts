@@ -1,8 +1,8 @@
 // Server-only client for the jeby-go backend API.
-// Lives under $lib/server so the private API URL/key never reach the browser.
+// The `.server` suffix keeps the private API URL/key from ever reaching the browser.
 
 import { env } from '$env/dynamic/private';
-import type { Alert, BuoyImages, ForecastSummary, MarineConditions } from '$lib/jeby';
+import type { Alert, Conditions, ForecastSummary, Images, Station, Vessel } from '$lib/jeby/models';
 
 const API_BASE = env.JEBY_API_URL ?? 'http://localhost:8080';
 const API_ROOT = `${API_BASE}/api/v1`;
@@ -24,29 +24,28 @@ async function getJSON<T>(fetch: Fetch, path: string): Promise<T | null> {
 	}
 }
 
-export interface BoatParams {
-	length: number; // meters
-	weight: number; // kg
-}
-
 // Bind a client to a request's `fetch` so SvelteKit can dedupe/serialize the
-// calls into the SSR payload.
+// calls into the SSR payload. The backend is Vineyard-only, so buoy/zone are
+// fixed server-side and no location params are needed.
 export function createJebyClient(fetch: Fetch) {
 	return {
-		conditions(buoyId: string, boat: BoatParams) {
-			return getJSON<MarineConditions>(
-				fetch,
-				`/marine/buoys/${buoyId}/conditions?boatLength=${boat.length}&boatWeight=${boat.weight}`
-			);
+		vessels() {
+			return getJSON<Vessel[]>(fetch, '/vessels');
 		},
-		images(buoyId: string) {
-			return getJSON<BuoyImages>(fetch, `/marine/buoys/${buoyId}/images`);
+		stations() {
+			return getJSON<Station[]>(fetch, '/stations');
 		},
-		forecastSummary(zoneId: string) {
-			return getJSON<ForecastSummary>(fetch, `/marine/zones/${zoneId}/forecast/summary`);
+		conditions(vesselCode: string) {
+			return getJSON<Conditions>(fetch, `/conditions?vessel=${encodeURIComponent(vesselCode)}`);
 		},
-		activeAlerts(zoneId: string) {
-			return getJSON<Alert[]>(fetch, `/marine/zones/${zoneId}/alerts/active`);
+		images() {
+			return getJSON<Images>(fetch, '/images');
+		},
+		forecastSummary() {
+			return getJSON<ForecastSummary>(fetch, '/forecast/marine');
+		},
+		activeAlerts() {
+			return getJSON<Alert[]>(fetch, '/alerts');
 		}
 	};
 }

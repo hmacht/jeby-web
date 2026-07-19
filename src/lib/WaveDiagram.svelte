@@ -1,6 +1,6 @@
 <script lang="ts">
 	import boatImage from '$lib/assets/gw-freedom-215.png';
-	import { metersToFeet } from '$lib/jeby';
+	import { metersToFeet } from '$lib/jeby/utils';
 
 	// Top-down boat image is 1080×396, so beam = length × (396 / 1080).
 	const BOAT_ASPECT = 396 / 1080;
@@ -52,14 +52,14 @@
 
 {#snippet bracket(x1: number, x2: number, y: number, label: string, color: string)}
 	<g stroke={color} stroke-width="1.5">
-		<line x1={x1} y1={y - 9} x2={x1} y2={y + 9} />
-		<line x1={x2} y1={y - 9} x2={x2} y2={y + 9} />
-		<line x1={x1} y1={y} x2={(x1 + x2) / 2 - 30} y2={y} />
-		<line x1={(x1 + x2) / 2 + 30} y1={y} x2={x2} y2={y} />
+		<line {x1} y1={y - 9} x2={x1} y2={y + 9} />
+		<line x1={x2} y1={y - 9} {x2} y2={y + 9} />
+		<line {x1} y1={y} x2={(x1 + x2) / 2 - 30} y2={y} />
+		<line x1={(x1 + x2) / 2 + 30} y1={y} {x2} y2={y} />
 	</g>
 	<text
 		x={(x1 + x2) / 2}
-		y={y}
+		{y}
 		fill={color}
 		font-size="20"
 		text-anchor="middle"
