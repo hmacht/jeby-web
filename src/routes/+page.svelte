@@ -7,9 +7,12 @@
 	import MarineForecast from '$lib/MarineForecast.svelte';
 	import Modal from '$lib/Modal.svelte';
 	import TunedFor from '$lib/TunedFor.svelte';
+	import VesselSelect from '$lib/VesselSelect.svelte';
 	import WaveDiagram from '$lib/WaveDiagram.svelte';
 	import squiggle from '$lib/assets/squiggle.png';
 	import noaaLogo from '$lib/assets/NOAA-color-logo.png';
+	import whoiLogo from '$lib/assets/WHOI-color-logo.png';
+	import mericaFlag from '$lib/assets/merica.png';
 	import ogImage from '$lib/assets/jeyb-open-web.png';
 	import ZoomableImage from '$lib/ZoomableImage.svelte';
 	import { flattenConditions } from '$lib/jeby/models';
@@ -62,8 +65,7 @@
 
 	// Switching vessels re-runs the load via a URL query param, so the change is
 	// SSR-friendly and shareable.
-	function selectVessel(event: Event) {
-		const code = (event.currentTarget as HTMLSelectElement).value;
+	function selectVessel(code: string) {
 		goto(resolve(`/?vessel=${encodeURIComponent(code)}`), { keepFocus: true, noScroll: true });
 	}
 
@@ -88,9 +90,10 @@
 		})
 	);
 
-	// Buoys report a single live wave-height reading, so show one rounded value.
+	// Hero seas number: the live wave height in feet, to one decimal (not rounded
+	// to a whole number).
 	const seas = $derived(
-		readings.waveHeight == null ? null : Math.round(metersToFeet(readings.waveHeight))
+		readings.waveHeight == null ? null : metersToFeet(readings.waveHeight).toFixed(1)
 	);
 	const score = $derived(conditions?.bumpyScore?.score ?? null);
 	const disclaimers = $derived(conditions?.bumpyScore?.disclaimers ?? []);
@@ -146,9 +149,10 @@
 	<header class="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
 		<div>
 			<div>
-				<h1 class="text-2xl font-medium tracking-tight sm:text-3xl">Captain Macht</h1>
+				<h1 class="text-2xl font-medium tracking-tight sm:text-3xl">The Jeby Report</h1>
 				<div class="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-lg text-neutral-500">
 					<span>{data.location}</span>
+					·
 					<span>{when}</span>
 				</div>
 			</div>
@@ -165,26 +169,12 @@
 		</div>
 
 		<!-- Vessel picker: choose which boat the BumpyScore is computed for. -->
-		<div class="flex items-center gap-3 sm:flex-col sm:items-end">
-			<label for="vessel" class="text-sm text-neutral-400">Vessel</label>
-			<div class="relative">
-				<select
-					id="vessel"
-					value={data.selectedVessel}
-					onchange={selectVessel}
-					disabled={loading || data.vessels.length === 0}
-					class="appearance-none rounded-lg border border-border bg-surface py-2 pl-3 pr-9 text-sm font-medium text-white transition hover:border-neutral-500 focus:border-neutral-400 focus:outline-none disabled:opacity-50"
-				>
-					{#each data.vessels as v (v.code)}
-						<option value={v.code}>{v.name}</option>
-					{/each}
-				</select>
-				<span
-					class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400"
-					aria-hidden="true">▾</span
-				>
-			</div>
-		</div>
+		<VesselSelect
+			vessels={data.vessels}
+			selected={data.selectedVessel}
+			disabled={loading || data.vessels.length === 0}
+			onSelect={selectVessel}
+		/>
 	</header>
 
 	<!-- Decorative wave -->
@@ -344,7 +334,6 @@
 >
 	<p class="flex items-center gap-2">
 		<img src={noaaLogo} alt="" aria-hidden="true" class="h-5 w-5" />
-		Data from
 		<a
 			href="https://www.ndbc.noaa.gov/station_page.php?station=44020"
 			target="_blank"
@@ -352,6 +341,16 @@
 			class="text-white underline underline-offset-2 transition hover:text-neutral-300"
 		>
 			NOAA
+		</a>
+		&amp;
+		<img src={whoiLogo} alt="" aria-hidden="true" class="h-5 w-5" />
+		<a
+			href="https://mvco.whoi.edu/"
+			target="_blank"
+			rel="noopener noreferrer"
+			class="text-white underline underline-offset-2 transition hover:text-neutral-300"
+		>
+			WHOI
 		</a>
 	</p>
 
@@ -364,6 +363,7 @@
 			<span class="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" aria-hidden="true"></span>
 			<span class="italic">Last updated {lastUpdated}</span>
 		{/if}
+		<img src={mericaFlag} alt="American flag" class="h-2 w-auto self-center" />
 	</div>
 </footer>
 

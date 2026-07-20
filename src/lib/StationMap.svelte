@@ -3,8 +3,9 @@
 	// loaded lazily in onMount (browser only); the CSS import is SSR-safe because
 	// Vite extracts it at build time.
 	import 'leaflet/dist/leaflet.css';
-	import { flushSync, mount, onMount, unmount } from 'svelte';
+	import { flushSync, mount, onMount, unmount, type Component } from 'svelte';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
+	import LifeBuoy from '@lucide/svelte/icons/life-buoy';
 	import RadioTower from '@lucide/svelte/icons/radio-tower';
 	import type { Map as LeafletMap } from 'leaflet';
 	import Modal from '$lib/Modal.svelte';
@@ -22,13 +23,13 @@
 
 	let container: HTMLDivElement;
 
-	// Render the Lucide radio-tower component to an SVG string for the Leaflet
-	// marker (which takes HTML, not a Svelte component).
-	function radioTowerHtml(): string {
+	// Render a Lucide icon component to an SVG string for the Leaflet marker
+	// (which takes HTML, not a Svelte component).
+	function iconHtml(component: Component): string {
 		const holder = document.createElement('div');
-		const icon = mount(RadioTower, {
+		const icon = mount(component, {
 			target: holder,
-			props: { size: 20, color: '#ef4444', strokeWidth: 2.25 }
+			props: { size: 28, color: '#ef4444', strokeWidth: 2.25 }
 		});
 		flushSync();
 		const html = holder.innerHTML;
@@ -51,18 +52,25 @@
 				maxZoom: 19
 			}).addTo(map);
 
-			const towerIcon = L.divIcon({
-				className: 'station-marker',
-				html: `<span class="station-marker__badge">${radioTowerHtml()}</span>`,
-				iconSize: [34, 34],
-				iconAnchor: [17, 17]
-			});
+			const divIcon = (component: Component) =>
+				L.divIcon({
+					className: 'station-marker',
+					html: iconHtml(component),
+					iconSize: [28, 28],
+					iconAnchor: [14, 14]
+				});
+			// MVCO is a fixed observatory tower; everything else is a floating buoy.
+			const towerIcon = divIcon(RadioTower);
+			const buoyIcon = divIcon(LifeBuoy);
 
 			const bounds = L.latLngBounds([]);
 			for (const station of stations) {
 				const latlng: [number, number] = [station.lat, station.long];
 				bounds.extend(latlng);
-				L.marker(latlng, { icon: towerIcon, title: station.name })
+				L.marker(latlng, {
+					icon: station.code === 'MVCO' ? towerIcon : buoyIcon,
+					title: station.name
+				})
 					.addTo(map)
 					.on('click', () => {
 						selected = station;
@@ -71,9 +79,11 @@
 			}
 
 			if (bounds.isValid()) {
-				map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
+				// Fit the stations, then back off one zoom step for a little breathing room.
+				const fitZoom = Math.min(12, map.getBoundsZoom(bounds, false, L.point(40, 40)));
+				map.setView(bounds.getCenter(), fitZoom - 1);
 			} else {
-				map.setView(FALLBACK_CENTER, 10);
+				map.setView(FALLBACK_CENTER, 9);
 			}
 		})();
 
@@ -86,7 +96,7 @@
 	(z-50) still render above the map. -->
 <div
 	bind:this={container}
-	class="isolate h-full min-h-72 w-full overflow-hidden rounded-xl border border-border"
+	class="map-dark isolate h-full min-h-72 w-full overflow-hidden rounded-xl border border-border"
 ></div>
 
 <Modal bind:open={modalOpen} title="Station Details">
@@ -114,22 +124,20 @@
 	{/if}
 </Modal>
 
-<!-- Leaflet gives div icons a white box by default; replace it with a round badge
-	for the tower glyph. Global because Leaflet creates these outside Svelte's scope. -->
+<!-- Global because Leaflet builds these elements outside Svelte's style scope. -->
 <style>
+	/* Dark mode: invert the standard OSM tiles so we keep OSM's ferry routes and
+	   labels but render them on a dark basemap. Only the tile pane is filtered, so
+	   markers, popups, and controls stay untouched. */
+	:global(.map-dark .leaflet-tile-pane) {
+		filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
+	}
+
+	/* No white box behind the marker — just the icon, with a drop-shadow so it
+	   reads against the map. */
 	:global(.leaflet-div-icon.station-marker) {
 		background: transparent;
 		border: 0;
-	}
-
-	:global(.station-marker__badge) {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 34px;
-		height: 34px;
-		border-radius: 9999px;
-		background: #ffffff;
-		box-shadow: 0 1px 3px rgb(0 0 0 / 0.4);
+		filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.7));
 	}
 </style>
