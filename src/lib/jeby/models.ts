@@ -1,0 +1,167 @@
+// Types and helpers for talking to the jeby-go API.
+
+import { cToF, metersToFeet, mpsToMph } from './utils';
+
+// A numeric reading paired with its unit. `value` is null when the sensor
+// didn't report; `unit` is always set since it's a property of the field.
+export interface Measurement {
+	value: number | null;
+	unit: string;
+}
+
+export interface BumpyScore {
+	score: number | null; // 0 - 100
+	disclaimers: string[];
+	analysis: string | null;
+}
+
+// A vessel in the registry, as served by /vessels. Specs are free-form strings
+// because craft categories are ranges ("26-65 ft") and some specs are unknown.
+export interface Vessel {
+	code: string;
+	name: string;
+	description: string;
+	weight: string;
+	length: string;
+	horsepower: string;
+	maxPassengers: string;
+}
+
+// The ocean readings from a single station (the MVCO sensor or the NOAA buoy).
+export interface StationConditions {
+	waveHeight: Measurement;
+	wavePeriod: Measurement;
+	waveLength: Measurement;
+	windSpeed: Measurement;
+	windDirectionDegrees: Measurement;
+	windDirectionCardinal: string | null;
+	waterTemp: Measurement;
+}
+
+// The full conditions payload for one vessel: the vessel it's for, that vessel's
+// BumpyScore, and the ocean readings from each station we pull.
+export interface Conditions {
+	vessel: Vessel;
+	bumpyScore: BumpyScore;
+	mvco: StationConditions;
+	buoy: StationConditions;
+}
+
+// A flat, station-merged view of the readings for display. Each field prefers
+// the NOAA buoy and falls back to the MVCO sensor so a gap in one source still
+// shows a number.
+export interface Readings {
+	waveHeight: number | null; // meters
+	wavePeriod: number | null; // seconds
+	waveLength: number | null; // meters
+	windSpeed: number | null; // m/s
+	windDirectionDegrees: number | null;
+	windDirectionCardinal: string | null;
+	waterTemp: number | null; // degC
+}
+
+// The StationConditions fields that are Measurements (i.e. numeric readings).
+type MeasurementKey = {
+	[K in keyof StationConditions]: StationConditions[K] extends Measurement ? K : never;
+}[keyof StationConditions];
+
+// Flatten the two stations into one set of readings, preferring the buoy and
+// falling back to MVCO for each field independently.
+export function flattenConditions(conditions: Conditions | null): Readings {
+	const buoy = conditions?.buoy;
+	const mvco = conditions?.mvco;
+	const pick = (key: MeasurementKey) => buoy?.[key]?.value ?? mvco?.[key]?.value ?? null;
+
+	return {
+		waveHeight: pick('waveHeight'),
+		wavePeriod: pick('wavePeriod'),
+		waveLength: pick('waveLength'),
+		windSpeed: pick('windSpeed'),
+		windDirectionDegrees: pick('windDirectionDegrees'),
+		windDirectionCardinal: buoy?.windDirectionCardinal ?? mvco?.windDirectionCardinal ?? null,
+		waterTemp: pick('waterTemp')
+	};
+}
+
+export interface ForecastPeriod {
+	header: string;
+	text: string;
+}
+
+export interface ForecastSummary {
+	periods: ForecastPeriod[];
+	full: string;
+}
+
+export interface Alert {
+	event: string;
+	description: string;
+	severity: string;
+}
+
+export interface Images {
+	buoy360: string | null;
+	asitcam2: string;
+}
+
+// A data source we pull readings from, as served by /stations. Lat/long place it
+// on the map; the URLs link out to the source.
+export interface Station {
+	code: string;
+	name: string;
+	lat: number;
+	long: number;
+	profileUrl: string;
+	detailsUrl: string;
+}
+
+// Pick the readings for a station out of a conditions payload. Station codes come
+// from the registry: "MVCO" maps to the MVCO sensor, everything else (the buoy)
+// maps to the NOAA buoy.
+export function stationConditions(
+	conditions: Conditions | null,
+	code: string
+): StationConditions | null {
+	if (!conditions) return null;
+	return code === 'MVCO' ? conditions.mvco : conditions.buoy;
+}
+
+// A single labeled reading, formatted for display in imperial units.
+export interface ReadingRow {
+	label: string;
+	value: string;
+}
+
+// Turn a station's readings into display rows (feet / mph / °F / seconds), with
+// an em dash for anything the sensor didn't report.
+export function stationReadingRows(station: StationConditions | null): ReadingRow[] {
+	const fmt = (value: number | null, convert: (n: number) => number, unit: string, digits = 0) =>
+		value == null ? '—' : `${convert(value).toFixed(digits)} ${unit}`;
+
+	const wind =
+		station?.windSpeed.value == null
+			? '—'
+			: `${mpsToMph(station.windSpeed.value).toFixed(0)} mph${
+					station.windDirectionCardinal ? ` ${station.windDirectionCardinal}` : ''
+				}`;
+
+	return [
+		{ label: 'Wave height', value: fmt(station?.waveHeight.value ?? null, metersToFeet, 'ft', 1) },
+		{
+			label: 'Wave period',
+			value: station?.wavePeriod.value == null ? '—' : `${station.wavePeriod.value.toFixed(0)} s`
+		},
+		{ label: 'Wave length', value: fmt(station?.waveLength.value ?? null, metersToFeet, 'ft') },
+		{ label: 'Wind', value: wind },
+		{ label: 'Water temp', value: fmt(station?.waterTemp.value ?? null, cToF, '°F') }
+	];
+}
+
+// Turn an average wave height (meters) into a friendly feet range, e.g. "2-3".
+export function seasRange(waveHeightMeters: number | null): string | null {
+	if (waveHeightMeters == null) return null;
+	const feet = metersToFeet(waveHeightMeters);
+	const lo = Math.max(0, Math.floor(feet));
+	const hi = Math.ceil(feet);
+	return lo === hi ? `${hi}` : `${lo}-${hi}`;
+}

@@ -43,6 +43,7 @@
 		{/if}
 	</svg>
 	<div class="text-sm leading-relaxed text-neutral-300">
-		{#if title}<span class="font-medium text-neutral-100">{title}.</span>{' '}{/if}{@render children()}
+		{#if title}<span class="font-medium text-neutral-100">{title}.</span
+			>&nbsp;{/if}{@render children()}
 	</div>
 </div>
