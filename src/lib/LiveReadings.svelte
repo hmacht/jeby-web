@@ -5,7 +5,15 @@
 	import StationMap from '$lib/StationMap.svelte';
 	import { stationConditions, type Conditions, type Station } from '$lib/jeby/models';
 
-	let { stations, conditions }: { stations: Station[]; conditions: Conditions | null } = $props();
+	let {
+		stations,
+		conditions,
+		stationImages = {}
+	}: {
+		stations: Station[];
+		conditions: Conditions | null;
+		stationImages?: Record<string, string | null>;
+	} = $props();
 </script>
 
 <section>
@@ -18,7 +26,7 @@
 		<!-- Map (left) -->
 		<div class="min-h-80">
 			{#if stations.length}
-				<StationMap {stations} />
+				<StationMap {stations} {stationImages} />
 			{:else}
 				<div
 					class="flex h-full min-h-80 items-center justify-center rounded-xl border border-border bg-surface text-sm text-neutral-500"
@@ -31,7 +39,11 @@
 		<!-- Tables (right) -->
 		<div class="space-y-6">
 			{#each stations as station (station.code)}
-				<ReadingsTable name={station.name} readings={stationConditions(conditions, station.code)} />
+				<ReadingsTable
+					name={station.name}
+					code={station.code}
+					readings={stationConditions(conditions, station.code)}
+				/>
 			{:else}
 				<p class="text-sm text-neutral-500">No stations reporting right now.</p>
 			{/each}

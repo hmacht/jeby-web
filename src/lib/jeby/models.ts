@@ -27,6 +27,11 @@ export interface Vessel {
 	maxPassengers: string;
 }
 
+// Whether the given vessel is the Island Queen.
+export function isIslandQueen(vessel: Vessel | null | undefined): boolean {
+	return vessel?.code === 'IQ';
+}
+
 // The ocean readings from a single station (the MVCO sensor or the NOAA buoy).
 export interface StationConditions {
 	waveHeight: Measurement;
@@ -115,15 +120,26 @@ export interface Station {
 	detailsUrl: string;
 }
 
-// Pick the readings for a station out of a conditions payload. Station codes come
-// from the registry: "MVCO" maps to the MVCO sensor, everything else (the buoy)
-// maps to the NOAA buoy.
+// Station codes from the /stations registry. Centralized so a code change (or a
+// new station) only has to be made here rather than across the UI.
+export const STATION_CODE = {
+	mvco: 'MVCO',
+	buoy: '44020'
+} as const;
+
+// Whether a station code is the MVCO sensor (vs. the NOAA buoy).
+export function isMvco(code: string): boolean {
+	return code === STATION_CODE.mvco;
+}
+
+// Pick the readings for a station out of a conditions payload: the MVCO sensor,
+// or the NOAA buoy for everything else.
 export function stationConditions(
 	conditions: Conditions | null,
 	code: string
 ): StationConditions | null {
 	if (!conditions) return null;
-	return code === 'MVCO' ? conditions.mvco : conditions.buoy;
+	return isMvco(code) ? conditions.mvco : conditions.buoy;
 }
 
 // A single labeled reading, formatted for display in imperial units.

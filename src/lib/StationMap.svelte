@@ -9,17 +9,26 @@
 	import RadioTower from '@lucide/svelte/icons/radio-tower';
 	import type { Map as LeafletMap } from 'leaflet';
 	import Modal from '$lib/Modal.svelte';
-	import type { Station } from '$lib/jeby/models';
+	import { isMvco, type Station } from '$lib/jeby/models';
 	import { formatCoords } from '$lib/jeby/utils';
 
-	let { stations }: { stations: Station[] } = $props();
+	let {
+		stations,
+		stationImages = {}
+	}: {
+		stations: Station[];
+		stationImages?: Record<string, string | null>;
+	} = $props();
 
 	// Vineyard Sound — used when no stations place the view.
 	const FALLBACK_CENTER: [number, number] = [41.4, -70.42];
 
-	// Marker click opens a modal with the station's profile image.
+	// Marker click opens a modal with the station's profile + live camera image.
 	let selected = $state<Station | null>(null);
 	let modalOpen = $state(false);
+
+	// The station's live camera image (if any) for the modal.
+	const liveImage = $derived(selected ? (stationImages[selected.code] ?? null) : null);
 
 	let container: HTMLDivElement;
 
@@ -68,7 +77,7 @@
 				const latlng: [number, number] = [station.lat, station.long];
 				bounds.extend(latlng);
 				L.marker(latlng, {
-					icon: station.code === 'MVCO' ? towerIcon : buoyIcon,
+					icon: isMvco(station.code) ? towerIcon : buoyIcon,
 					title: station.name
 				})
 					.addTo(map)
@@ -121,6 +130,13 @@
 				</a>
 			</div>
 		</div>
+		{#if liveImage}
+			<img
+				src={liveImage}
+				alt="Latest view from {selected.name}"
+				class="mt-4 w-full rounded-lg border border-border"
+			/>
+		{/if}
 	{/if}
 </Modal>
 

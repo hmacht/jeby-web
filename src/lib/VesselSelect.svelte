@@ -10,12 +10,14 @@
 		vessels,
 		selected,
 		disabled = false,
-		onSelect
+		onSelect,
+		class: className = 'w-full sm:w-64'
 	}: {
 		vessels: Vessel[];
 		selected: string;
 		disabled?: boolean;
 		onSelect: (code: string) => void;
+		class?: string;
 	} = $props();
 
 	// Vessel photos live in assets/vessels named by code (e.g. F215.png). Build a
@@ -67,7 +69,7 @@
 	{/if}
 {/snippet}
 
-<div class="relative w-full sm:w-64" bind:this={root}>
+<div class="relative {className}" bind:this={root}>
 	<button
 		type="button"
 		onclick={toggle}
@@ -104,7 +106,10 @@
 							: ''}"
 					>
 						{@render thumb(vessel)}
-						<span class="min-w-0 flex-1 truncate text-white">{vessel.name}</span>
+						<span class="min-w-0 flex-1">
+							<span class="block truncate text-white">{vessel.name}</span>
+							<span class="block truncate text-xs text-neutral-400">{vessel.length}</span>
+						</span>
 						{#if vessel.code === selected}
 							<Check size={16} class="shrink-0 text-white" />
 						{/if}

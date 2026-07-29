@@ -6,6 +6,8 @@
 	import LiveReadings from '$lib/LiveReadings.svelte';
 	import MarineForecast from '$lib/MarineForecast.svelte';
 	import Modal from '$lib/Modal.svelte';
+	import SiteFooter from '$lib/SiteFooter.svelte';
+	import TopNav from '$lib/TopNav.svelte';
 	import TunedFor from '$lib/TunedFor.svelte';
 	import VesselSelect from '$lib/VesselSelect.svelte';
 	import WaveDiagram from '$lib/WaveDiagram.svelte';
@@ -15,7 +17,11 @@
 	import mericaFlag from '$lib/assets/merica.png';
 	import ogImage from '$lib/assets/jeyb-open-web.png';
 	import ZoomableImage from '$lib/ZoomableImage.svelte';
-	import { flattenConditions } from '$lib/jeby/models';
+	import LifeBuoy from '@lucide/svelte/icons/life-buoy';
+	import Moon from '@lucide/svelte/icons/moon';
+	import RadioTower from '@lucide/svelte/icons/radio-tower';
+	import Sparkles from '@lucide/svelte/icons/sparkles';
+	import { flattenConditions, STATION_CODE } from '$lib/jeby/models';
 	import { metersToFeet } from '$lib/jeby/utils';
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
@@ -23,6 +29,10 @@
 	let { data }: { data: PageData } = $props();
 
 	let showDisclaimers = $state(false);
+
+	// The compact top nav slides in once the header scrolls out of view.
+	let headerEl: HTMLElement;
+	let showNav = $state(false);
 
 	// Re-pull fresh NOAA data on an interval. invalidateAll() alone doesn't set
 	// `navigating`, so track our own flag for the loading indicator.
@@ -41,7 +51,17 @@
 
 	onMount(() => {
 		const id = setInterval(refresh, 10 * 60_000);
-		return () => clearInterval(id);
+
+		// Reveal the top nav once the header is fully scrolled past.
+		const observer = new IntersectionObserver(([entry]) => {
+			showNav = !entry.isIntersecting;
+		});
+		observer.observe(headerEl);
+
+		return () => {
+			clearInterval(id);
+			observer.disconnect();
+		};
 	});
 
 	const lastUpdated = $derived(
@@ -55,6 +75,12 @@
 
 	// Station-merged readings for display (prefers the NOAA buoy, falls back to MVCO).
 	const readings = $derived(flattenConditions(conditions));
+
+	// Live camera image for each station, keyed by code (MVCO tower / NOAA buoy).
+	const stationImages: Record<string, string | null> = $derived({
+		[STATION_CODE.mvco]: data.asitcam2,
+		[STATION_CODE.buoy]: data.buoy360
+	});
 
 	// The vessel the BumpyScore is currently computed for. Prefer the one echoed
 	// back in the conditions payload; fall back to the registry entry if the
@@ -98,6 +124,10 @@
 	const score = $derived(conditions?.bumpyScore?.score ?? null);
 	const disclaimers = $derived(conditions?.bumpyScore?.disclaimers ?? []);
 	const analysis = $derived(conditions?.bumpyScore?.analysis ?? null);
+
+	// Overnight the backend pauses AI scoring and serves a quiet-hours message with
+	// a null score. Detect it so we can show a closed eye instead of a dash.
+	const inQuietHours = $derived((analysis ?? '').toLowerCase().includes('quiet hours'));
 
 	// Gradient stops used by the bumpy-score bar (evenly spaced 0 → 100).
 	const SCORE_STOPS = ['#4ade80', '#a3e635', '#facc15', '#fb923c', '#ef4444', '#a855f7'];
@@ -144,9 +174,27 @@
 	<meta name="twitter:image" content={ogImageUrl} />
 </svelte:head>
 
-<main class="min-h-screen bg-background px-6 pb-24 pt-10 text-white sm:px-12 lg:px-16">
+<TopNav
+	visible={showNav}
+	title="The Jeby Report"
+	vessels={data.vessels}
+	selected={data.selectedVessel}
+	disabled={loading || data.vessels.length === 0}
+	onSelect={selectVessel}
+/>
+
+<main class="relative min-h-screen overflow-hidden px-6 pb-16 pt-10 text-white sm:px-12 lg:px-16">
+	<!-- Faint blue glow bleeding in from the top of the page. -->
+	<div
+		aria-hidden="true"
+		class="pointer-events-none absolute left-1/2 top-0 -z-10 h-96 w-[52rem] max-w-full -translate-x-1/2 -translate-y-1/3 rounded-[50%] bg-blue-500/50 blur-3xl"
+	></div>
+
 	<!-- Header: greeting + hero on the left, vessel picker off to the right -->
-	<header class="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+	<header
+		bind:this={headerEl}
+		class="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between"
+	>
 		<div>
 			<div>
 				<h1 class="text-2xl font-medium tracking-tight sm:text-3xl">The Jeby Report</h1>
@@ -198,13 +246,20 @@
 		<!-- Bumpy Score + Forecast: stacked on mobile, side by side on desktop -->
 		<div class="flex flex-col gap-6 lg:flex-row">
 			<div class="w-fit shrink-0">
+				{#snippet scoreValue()}
+					{#if inQuietHours}
+						<Moon size={48} class="mx-auto block text-neutral-400" />
+					{:else}
+						{score ?? '—'}
+					{/if}
+				{/snippet}
 				{#if disclaimers.length}
 					<button
 						type="button"
 						class="group relative block text-left lg:text-center"
 						onclick={() => (showDisclaimers = true)}
 					>
-						<div class="text-6xl font-normal leading-none">{score ?? '—'}</div>
+						<div class="text-6xl font-normal leading-none">{@render scoreValue()}</div>
 						<div class="mt-1 text-sm text-neutral-400 transition group-hover:text-neutral-200">
 							BumpyScore™
 						</div>
@@ -222,13 +277,31 @@
 					</button>
 				{:else}
 					<div class="text-left lg:text-center">
-						<div class="text-6xl font-normal leading-none">{score ?? '—'}</div>
+						<div class="text-6xl font-normal leading-none">{@render scoreValue()}</div>
 						<div class="mt-1 text-sm text-neutral-400">BumpyScore™</div>
 					</div>
 				{/if}
 			</div>
 			<div class="hidden w-px self-stretch bg-neutral-700 lg:block"></div>
 			<div class="max-w-md">
+				<!-- Gradient (light → dark blue) referenced by the sparkle icon below. -->
+				<svg aria-hidden="true" width="0" height="0" class="absolute">
+					<defs>
+						<linearGradient id="sparkle-gradient" x1="0" y1="0" x2="1" y2="1">
+							<stop offset="0%" stop-color="#7dd3fc" />
+							<stop offset="100%" stop-color="#1d4ed8" />
+						</linearGradient>
+					</defs>
+				</svg>
+
+				<div class="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-white">
+					{#if inQuietHours}
+						Quiet Hours
+					{:else}
+						<Sparkles size={16} color="url(#sparkle-gradient)" />
+						AI Analysis
+					{/if}
+				</div>
 				<p class="text-sm leading-relaxed text-neutral-300">
 					{#if analysis}
 						{analysis}
@@ -269,7 +342,10 @@
 				alt="Latest 360° view from the buoy camera"
 				class="w-full rounded-lg border border-border sm:rounded-2xl"
 			/>
-			<figcaption class="mt-2 text-sm text-neutral-500">Latest 360° view from the buoy</figcaption>
+			<figcaption class="mt-2 flex items-center gap-1.5 text-sm text-neutral-500">
+				<LifeBuoy size={14} class="shrink-0" />
+				Latest 360° view from the buoy
+			</figcaption>
 		</figure>
 	{/if}
 
@@ -281,7 +357,8 @@
 				alt="Latest view from the MVCO ASIT tower webcam"
 				class="w-full rounded-lg border border-border sm:rounded-2xl"
 			/>
-			<figcaption class="mt-2 text-sm text-neutral-500">
+			<figcaption class="mt-2 flex items-center gap-1.5 text-sm text-neutral-500">
+				<RadioTower size={14} class="shrink-0" />
 				Latest view from the MVCO ASIT tower
 			</figcaption>
 		</figure>
@@ -310,7 +387,7 @@
 		<img src={squiggle} alt="" aria-hidden="true" class="h-3 w-auto" />
 	</div>
 
-	<LiveReadings stations={data.stations} {conditions} />
+	<LiveReadings stations={data.stations} {conditions} {stationImages} />
 
 	<!-- Decorative wave -->
 	<div class="my-12 flex justify-center">
@@ -329,8 +406,11 @@
 	{/if}
 </main>
 
+<SiteFooter />
+
+<!-- Persistent live-status bar. -->
 <footer
-	class="fixed inset-x-0 bottom-0 flex items-center justify-between gap-2 border-t border-border bg-surface px-4 py-2 text-xs text-neutral-500 sm:px-6 sm:text-sm"
+	class="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-2 border-t border-border bg-surface px-4 py-2 text-xs text-neutral-500 sm:px-6 sm:text-sm"
 >
 	<p class="flex items-center gap-2">
 		<img src={noaaLogo} alt="" aria-hidden="true" class="h-5 w-5" />

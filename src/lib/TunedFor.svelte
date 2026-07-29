@@ -1,7 +1,8 @@
 <script lang="ts">
 	// "Tuned for" section: describes the vessel the BumpyScore is calibrated to and
 	// lists its specs. Renders nothing when no vessel is available.
-	import type { Vessel } from '$lib/jeby/models';
+	import ChessQueen from '@lucide/svelte/icons/chess-queen';
+	import { isIslandQueen, type Vessel } from '$lib/jeby/models';
 
 	let { vessel }: { vessel: Vessel | null } = $props();
 </script>
@@ -9,7 +10,12 @@
 {#if vessel}
 	<section class="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-12">
 		<div class="max-w-md">
-			<h2 class="text-lg font-medium text-white">Tuned for the {vessel.name}</h2>
+			<h2 class="flex items-center gap-2 text-lg font-medium text-white">
+				{#if isIslandQueen(vessel)}
+					<ChessQueen size={20} class="shrink-0 text-yellow-400" />
+				{/if}
+				Tuned for the {vessel.name}
+			</h2>
 			<p class="mt-2 text-sm leading-relaxed text-neutral-400">{vessel.description}</p>
 		</div>
 		<dl
