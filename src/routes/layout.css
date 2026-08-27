@@ -4,6 +4,22 @@
 	--color-background: #0b0b0b;
 	--color-surface: #111111;
 	--color-border: #2c2c2c;
+
+	/* Station tints, matching the iOS app: teal for the MVCO sensor, blue for
+	   the NOAA buoy. These are Apple's dark-mode systemTeal and systemBlue,
+	   which is what `CardStyle.tint(isMVCO:)` resolves to on the app's dark
+	   sheet — so a station reads the same color in both places. */
+	--color-mvco: #40c8e0;
+	--color-buoy: #0a84ff;
+
+	/* The ends of each tint's diagonal wash. The app builds these at runtime as
+	   `base.mix(with: .black, by: 0.72)` and `by: 0.24`; precomputed here so CSS
+	   doesn't have to. Deep is the top-left, bright the bottom-right. */
+	--color-mvco-deep: #12383f;
+	--color-mvco-bright: #3198aa;
+	--color-buoy-deep: #032547;
+	--color-buoy-bright: #0864c2;
+
 	--font-sans: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 

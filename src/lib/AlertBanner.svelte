@@ -18,7 +18,7 @@
 	const icon = $derived(iconColor[level]);
 </script>
 
-<div class="flex items-start gap-3 rounded-2xl border border-border bg-surface p-4">
+<div class="flex items-start gap-3">
 	<svg
 		class="mt-0.5 shrink-0 {icon}"
 		width="22"

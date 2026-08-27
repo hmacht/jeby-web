@@ -1,41 +1,45 @@
 <script lang="ts">
-	// Marine forecast section: a preview of the next NOAA period plus a button that
-	// opens the full multi-period forecast in a modal. Owns its own modal state.
+	// NOAA marine forecast card: a preview of the next forecast period. The circle
+	// button in the header opens the full multi-period forecast in a modal. Owns
+	// its own modal state.
+	import CloudSun from '@lucide/svelte/icons/cloud-sun';
+	import List from '@lucide/svelte/icons/list';
 	import Modal from '$lib/Modal.svelte';
 	import type { ForecastSummary } from '$lib/jeby/models';
 
-	let { forecast, location }: { forecast: ForecastSummary | null; location: string } = $props();
+	let { forecast }: { forecast: ForecastSummary | null } = $props();
 
 	let showForecast = $state(false);
 
 	const periods = $derived(forecast?.periods ?? []);
 </script>
 
-<section class="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-12">
-	<div class="max-w-md">
-		<h2 class="text-lg font-medium text-white">Marine forecast</h2>
-		<p class="mt-2 text-sm leading-relaxed text-neutral-400">
-			The latest NOAA marine forecast for {location}.
-		</p>
+<section class="flex flex-col rounded-2xl border border-border bg-surface p-5">
+	<div class="flex items-center gap-2">
+		<CloudSun size={18} class="shrink-0 text-neutral-300" />
+		<h3 class="text-base font-medium text-white">Marine Forecast</h3>
 		{#if periods.length > 0}
 			<button
 				type="button"
-				class="mt-3 inline-block rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-white transition hover:border-neutral-500"
 				onclick={() => (showForecast = true)}
+				aria-label="View full forecast"
+				title="View full forecast"
+				class="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-white/5 text-neutral-300 transition hover:bg-white/10 hover:text-white"
 			>
-				View NOAA Marine forecast
+				<List size={16} />
 			</button>
 		{/if}
 	</div>
-	<div
-		class="rounded-xl border border-border bg-surface p-4 text-sm lg:ml-auto lg:w-80 lg:shrink-0"
-	>
-		{#if periods[0]}
-			<h3 class="font-semibold text-white">{periods[0].header}</h3>
-			<p class="mt-1 leading-relaxed text-neutral-300">{periods[0].text}</p>
+
+	<div class="mt-4 grid gap-x-10 gap-y-3 sm:grid-cols-2">
+		{#each periods.slice(0, 2) as period (period.header)}
+			<div>
+				<h4 class="text-sm font-semibold text-white">{period.header}</h4>
+				<p class="mt-1 line-clamp-4 text-sm leading-relaxed text-neutral-300">{period.text}</p>
+			</div>
 		{:else}
-			<p class="text-neutral-400">Forecast unavailable right now.</p>
-		{/if}
+			<p class="text-sm text-neutral-400">Forecast unavailable right now.</p>
+		{/each}
 	</div>
 </section>
 

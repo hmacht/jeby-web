@@ -4,31 +4,25 @@
 	// Vite extracts it at build time.
 	import 'leaflet/dist/leaflet.css';
 	import { flushSync, mount, onMount, unmount, type Component } from 'svelte';
-	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import LifeBuoy from '@lucide/svelte/icons/life-buoy';
 	import RadioTower from '@lucide/svelte/icons/radio-tower';
 	import type { Map as LeafletMap } from 'leaflet';
-	import Modal from '$lib/Modal.svelte';
 	import { isMvco, type Station } from '$lib/jeby/models';
-	import { formatCoords } from '$lib/jeby/utils';
 
 	let {
 		stations,
-		stationImages = {}
+		readings = {},
+		onSelect
 	}: {
 		stations: Station[];
-		stationImages?: Record<string, string | null>;
+		readings?: Record<string, string | null>;
+		// A marker tap raises the station's details. The modal lives one level up
+		// so the cards beside the map open the same one.
+		onSelect: (station: Station) => void;
 	} = $props();
 
 	// Vineyard Sound — used when no stations place the view.
 	const FALLBACK_CENTER: [number, number] = [41.4, -70.42];
-
-	// Marker click opens a modal with the station's profile + live camera image.
-	let selected = $state<Station | null>(null);
-	let modalOpen = $state(false);
-
-	// The station's live camera image (if any) for the modal.
-	const liveImage = $derived(selected ? (stationImages[selected.code] ?? null) : null);
 
 	let container: HTMLDivElement;
 
@@ -38,12 +32,24 @@
 		const holder = document.createElement('div');
 		const icon = mount(component, {
 			target: holder,
-			props: { size: 28, color: '#ef4444', strokeWidth: 2.25 }
+			props: { size: 20, color: '#ffffff', strokeWidth: 2.25 }
 		});
 		flushSync();
 		const html = holder.innerHTML;
 		unmount(icon);
 		return html;
+	}
+
+	// Each station is a pill badge: its icon + live wave-height reading.
+	function badgeIcon(L: typeof import('leaflet'), station: Station) {
+		const component = isMvco(station.code) ? RadioTower : LifeBuoy;
+		const tone = isMvco(station.code) ? 'station-badge--mvco' : 'station-badge--buoy';
+		const ft = readings[station.code];
+		return L.divIcon({
+			className: 'station-badge-marker',
+			html: `<div class="station-badge ${tone}">${iconHtml(component)}<span>${ft ?? '—'} ft</span></div>`,
+			iconSize: [0, 0]
+		});
 	}
 
 	onMount(() => {
@@ -61,30 +67,13 @@
 				maxZoom: 19
 			}).addTo(map);
 
-			const divIcon = (component: Component) =>
-				L.divIcon({
-					className: 'station-marker',
-					html: iconHtml(component),
-					iconSize: [28, 28],
-					iconAnchor: [14, 14]
-				});
-			// MVCO is a fixed observatory tower; everything else is a floating buoy.
-			const towerIcon = divIcon(RadioTower);
-			const buoyIcon = divIcon(LifeBuoy);
-
 			const bounds = L.latLngBounds([]);
 			for (const station of stations) {
 				const latlng: [number, number] = [station.lat, station.long];
 				bounds.extend(latlng);
-				L.marker(latlng, {
-					icon: isMvco(station.code) ? towerIcon : buoyIcon,
-					title: station.name
-				})
+				L.marker(latlng, { icon: badgeIcon(L, station), title: station.name })
 					.addTo(map)
-					.on('click', () => {
-						selected = station;
-						modalOpen = true;
-					});
+					.on('click', () => onSelect(station));
 			}
 
 			if (bounds.isValid()) {
@@ -108,38 +97,6 @@
 	class="map-dark isolate h-full min-h-72 w-full overflow-hidden rounded-xl border border-border"
 ></div>
 
-<Modal bind:open={modalOpen} title="Station Details">
-	{#if selected}
-		<div class="flex gap-4">
-			<img
-				src={selected.profileUrl}
-				alt={selected.name}
-				class="h-28 w-28 shrink-0 rounded-lg border border-border object-cover"
-			/>
-			<div class="min-w-0">
-				<h3 class="text-base font-semibold text-white">{selected.name}</h3>
-				<p class="mt-1 text-sm text-neutral-400">{formatCoords(selected.lat, selected.long)}</p>
-				<a
-					href={selected.detailsUrl}
-					target="_blank"
-					rel="external noopener noreferrer"
-					class="mt-3 inline-flex items-center gap-1.5 text-sm text-white underline underline-offset-2 transition hover:text-neutral-300"
-				>
-					Station details
-					<ExternalLink size={14} />
-				</a>
-			</div>
-		</div>
-		{#if liveImage}
-			<img
-				src={liveImage}
-				alt="Latest view from {selected.name}"
-				class="mt-4 w-full rounded-lg border border-border"
-			/>
-		{/if}
-	{/if}
-</Modal>
-
 <!-- Global because Leaflet builds these elements outside Svelte's style scope. -->
 <style>
 	/* Dark mode: invert the standard OSM tiles so we keep OSM's ferry routes and
@@ -149,11 +106,41 @@
 		filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
 	}
 
-	/* No white box behind the marker — just the icon, with a drop-shadow so it
-	   reads against the map. */
-	:global(.leaflet-div-icon.station-marker) {
+	/* Strip Leaflet's default div-icon box; the badge below is centered on the
+	   station point via translate (the icon element itself is 0×0). */
+	:global(.leaflet-div-icon.station-badge-marker) {
 		background: transparent;
 		border: 0;
-		filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.7));
+	}
+
+	:global(.station-badge) {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.375rem;
+		transform: translate(-50%, -50%);
+		padding: 0.375rem 0.75rem;
+		border-radius: 9999px;
+		border: 1px solid rgb(255 255 255 / 0.12);
+		font-size: 0.875rem;
+		font-weight: 600;
+		line-height: 1;
+		white-space: nowrap;
+		color: #ffffff;
+		box-shadow: 0 4px 12px rgb(0 0 0 / 0.4);
+	}
+
+	:global(.station-badge svg) {
+		display: block;
+	}
+
+	/* The same tints as the station cards, and the same dark→bright diagonal —
+	   a badge and its card are the one station in two places. Reversed against
+	   the cards (bright first) so the small pill reads brighter on the map. */
+	:global(.station-badge--mvco) {
+		background-image: linear-gradient(135deg, var(--color-mvco-bright), var(--color-mvco-deep));
+	}
+
+	:global(.station-badge--buoy) {
+		background-image: linear-gradient(135deg, var(--color-buoy-bright), var(--color-buoy-deep));
 	}
 </style>

@@ -9,10 +9,19 @@ export interface Measurement {
 	unit: string;
 }
 
+// The AI's reasoning behind a BumpyScore: how to drive the boat through it
+// (steering) and how the ride will feel aboard (bumpy). Each is null when that
+// analysis wasn't produced (not computed yet, or during the backend's overnight
+// quiet hours).
+export interface BumpyAnalysis {
+	steering: string | null;
+	bumpy: string | null;
+}
+
 export interface BumpyScore {
 	score: number | null; // 0 - 100
 	disclaimers: string[];
-	analysis: string | null;
+	analysis: BumpyAnalysis;
 }
 
 // A vessel in the registry, as served by /vessels. Specs are free-form strings
@@ -116,6 +125,9 @@ export interface Station {
 	name: string;
 	lat: number;
 	long: number;
+	// Charted depth at the mooring, shown on the station card the way the app
+	// shows it.
+	depthMeters: number;
 	profileUrl: string;
 	detailsUrl: string;
 }
