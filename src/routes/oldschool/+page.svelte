@@ -17,16 +17,10 @@
 	import StatusBar from '$lib/StatusBar.svelte';
 	import VesselSelect from '$lib/VesselSelect.svelte';
 	import WaveAnimation from '$lib/WaveAnimation.svelte';
-	import WaveAscii from '$lib/WaveAscii.svelte';
 	import ZoomableImage from '$lib/ZoomableImage.svelte';
-	import {
-		flattenConditions,
-		isMvco,
-		stationConditions,
-		stationReadingRows,
-		type Station
-	} from '$lib/jeby/models';
+	import { isMvco, stationConditions, stationReadingRows, type Station } from '$lib/jeby/models';
 	import { stormStatus } from '$lib/jeby/report';
+	import { shimmer } from '$lib/shimmer';
 	import { cToF, metersToFeet } from '$lib/jeby/utils';
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
@@ -71,8 +65,6 @@
 	);
 
 	const conditions = $derived(data.conditions);
-	// Station-merged readings, for the wave graphic beside the score.
-	const readings = $derived(flattenConditions(conditions));
 	const vessel = $derived(
 		conditions?.vessel ?? data.vessels.find((v) => v.code === data.selectedVessel) ?? null
 	);
@@ -191,24 +183,27 @@
 			</div>
 		</div>
 
-		<!-- Masthead -->
-		<h1 class="font-semibold uppercase tracking-wide text-white">The Jeby Report</h1>
-		<p class="text-neutral-400">{data.location} &middot; {when}</p>
-		<p aria-hidden="true" class="overflow-hidden whitespace-nowrap text-neutral-700">{RULE}</p>
-
-		<!-- Alerts -->
-		<div class="mt-4">
-			{#each data.alerts as alert (alert.event + alert.description)}
-				<p class="text-amber-400">! {alert.event}: {alert.description}</p>
-			{:else}
-				<p>NOAA has no active alerts for this area.</p>
-			{/each}
-		</div>
-
-		<!-- Score, vessel, weather — with the sea running alongside. -->
-		<div class="mt-6 flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
+		<!-- The masthead through the score bar on the left, the sea alongside it. -->
+		<div class="flex flex-col gap-8 lg:flex-row lg:items-center lg:gap-10">
 			<div class="min-w-0 flex-1">
-				<dl>
+				<!-- Masthead -->
+				<h1 class="font-semibold uppercase tracking-wide text-white">The Jeby Report</h1>
+				<p class="mt-1 text-neutral-400">{data.location} &middot; {when}</p>
+				<p aria-hidden="true" class="mt-2 overflow-hidden whitespace-nowrap text-neutral-700">
+					{RULE}
+				</p>
+
+				<!-- Alerts -->
+				<div class="mt-4">
+					{#each data.alerts as alert (alert.event + alert.description)}
+						<p class="text-amber-400">! {alert.event}: {alert.description}</p>
+					{:else}
+						<p>NOAA has no active alerts for this area.</p>
+					{/each}
+				</div>
+
+				<!-- Score, vessel, weather -->
+				<dl class="mt-5">
 					<div class="flex gap-2">
 						<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">BUMPYSCORE</dt>
 						<dd class="font-semibold text-white">{scoreText}</dd>
@@ -234,18 +229,18 @@
 						</dd>
 					</div>
 				</dl>
+
+				<!-- The score on its scale, each block shaded by where it sits. -->
+				<div class="mt-5 overflow-hidden whitespace-nowrap">
+					<ScoreBlocks {score} cells={40} />
+				</div>
+				<p aria-hidden="true" class="mt-1 whitespace-pre text-neutral-500">{TICKS}</p>
 			</div>
 
-			<div class="w-full overflow-hidden rounded border border-border sm:w-64">
-				<WaveAnimation waveHeight={readings.waveHeight} wavePeriod={readings.wavePeriod} />
+			<div class="w-full lg:w-[22rem] lg:shrink-0">
+				<WaveAnimation stations={data.stations} {conditions} />
 			</div>
 		</div>
-
-		<!-- The score on its scale, each block shaded by where it sits. -->
-		<div class="mt-6 overflow-hidden whitespace-nowrap">
-			<ScoreBlocks {score} cells={40} />
-		</div>
-		<p aria-hidden="true" class="whitespace-pre text-neutral-500">{TICKS}</p>
 
 		<!-- The AI's read -->
 		<h2 class="mt-8 flex items-center gap-1.5 uppercase tracking-wide text-white">
@@ -256,11 +251,11 @@
 		<div class="mt-3 space-y-4">
 			<div>
 				<h3 class="text-neutral-500">The ride</h3>
-				<p class="mt-1">{analysis?.bumpy ?? 'not available right now.'}</p>
+				<p class="mt-1" use:shimmer>{analysis?.bumpy ?? 'not available right now.'}</p>
 			</div>
 			<div>
 				<h3 class="text-neutral-500">Captain</h3>
-				<p class="mt-1">{analysis?.steering ?? 'not available right now.'}</p>
+				<p class="mt-1" use:shimmer>{analysis?.steering ?? 'not available right now.'}</p>
 			</div>
 		</div>
 
@@ -302,23 +297,28 @@
 		{#if data.buoy360 || data.asitcam2}
 			<h2 class="mt-8 uppercase tracking-wide text-white">Images</h2>
 			<p aria-hidden="true" class="overflow-hidden whitespace-nowrap text-neutral-700">{SUBRULE}</p>
-			<div class="mt-3 space-y-6">
+			<!-- Butted together in a horizontal scroll on mobile, stacked full-width
+				from sm up. Sized by height there so neither frame is cropped and the
+				buoy's panorama simply runs long. -->
+			<div
+				class="mt-3 flex snap-x snap-mandatory gap-0.5 overflow-x-auto sm:block sm:space-y-6 sm:overflow-visible"
+			>
 				{#if data.buoy360}
-					<figure>
+					<figure class="shrink-0 snap-start sm:w-auto">
 						<ZoomableImage
 							src={data.buoy360}
 							alt="Latest 360° view from the buoy camera"
-							class="w-full rounded-lg border border-border"
+							class="h-52 w-auto max-w-none rounded-lg border border-border sm:h-auto sm:w-full sm:max-w-full"
 						/>
 						<figcaption class="mt-2 text-neutral-500">Latest 360° view from the buoy</figcaption>
 					</figure>
 				{/if}
 				{#if data.asitcam2}
-					<figure>
+					<figure class="shrink-0 snap-start sm:w-auto">
 						<ZoomableImage
 							src={data.asitcam2}
 							alt="Latest view from the MVCO ASIT tower webcam"
-							class="w-full rounded-lg border border-border"
+							class="h-52 w-auto max-w-none rounded-lg border border-border sm:h-auto sm:w-full sm:max-w-full"
 						/>
 						<figcaption class="mt-2 text-neutral-500">
 							Latest view from the MVCO ASIT tower
@@ -327,18 +327,6 @@
 				{/if}
 			</div>
 		{/if}
-
-		<!-- The sea, drawn in characters -->
-		<h2 class="mt-8 uppercase tracking-wide text-white">Wave visualizer</h2>
-		<p aria-hidden="true" class="overflow-hidden whitespace-nowrap text-neutral-700">{SUBRULE}</p>
-		<div class="mt-3">
-			<WaveAscii
-				waveHeight={readings.waveHeight}
-				waveLength={readings.waveLength}
-				wavePeriod={readings.wavePeriod}
-				{vessel}
-			/>
-		</div>
 
 		<!-- Station data -->
 		<h2 class="mt-8 uppercase tracking-wide text-white">Station data</h2>

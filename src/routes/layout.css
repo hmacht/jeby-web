@@ -31,3 +31,36 @@ body {
 	background-color: var(--color-background);
 	font-family: var(--font-sans);
 }
+
+/* A light sweeping across the text, put on by the shimmer action and taken off
+   again when it finishes. The gradient is the text's own color with a brighter
+   band running through it, clipped to the glyphs — so the only thing that
+   changes is where the light is.
+
+   It has to tile: the text is painted from this gradient alone, so any part of
+   the line the background doesn't cover would come out transparent — a black
+   band chasing the light. Both ends of the gradient are the base color, so the
+   seams don't show. */
+.shimmer-text {
+	background-image: linear-gradient(
+		100deg,
+		var(--color-neutral-300) 42%,
+		#ffffff 50%,
+		var(--color-neutral-300) 58%
+	);
+	background-size: 250% 100%;
+	background-repeat: repeat;
+	background-clip: text;
+	-webkit-background-clip: text;
+	color: transparent;
+	animation: shimmer-sweep 1.4s ease-out;
+}
+
+@keyframes shimmer-sweep {
+	from {
+		background-position: 160% 0;
+	}
+	to {
+		background-position: -60% 0;
+	}
+}

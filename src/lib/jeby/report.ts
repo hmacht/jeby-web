@@ -69,6 +69,24 @@ function blockScale(): string {
 	return line.join('').trimEnd();
 }
 
+// Prose broken to the report's column width, so an analysis reads as an indented
+// paragraph under its heading rather than running off the side.
+function wrap(text: string, indent = '    '): string[] {
+	const lines: string[] = [];
+	let line = '';
+	for (const word of text.split(/\s+/).filter(Boolean)) {
+		const candidate = line ? `${line} ${word}` : word;
+		if (line && indent.length + candidate.length > WIDTH) {
+			lines.push(indent + line);
+			line = word;
+		} else {
+			line = candidate;
+		}
+	}
+	if (line) lines.push(indent + line);
+	return lines;
+}
+
 // The bar we copy: twenty cells, so each one is five points, and the score
 // rounds to the nearest cell. The ends carry the scale.
 const BAR_CELLS = 20;
@@ -133,9 +151,11 @@ export function buildReport(input: ReportInput, plainText = false): string {
 
 	lines.push('AI ANALYSIS');
 	lines.push('-'.repeat(WIDTH));
-	lines.push(`  The ride    ${analysis?.bumpy ?? 'not available right now.'}`);
+	lines.push('  The ride');
+	lines.push(...wrap(analysis?.bumpy ?? 'not available right now.'));
 	lines.push('');
-	lines.push(`  Captain     ${analysis?.steering ?? 'not available right now.'}`);
+	lines.push('  Captain');
+	lines.push(...wrap(analysis?.steering ?? 'not available right now.'));
 	lines.push('');
 
 	lines.push('STORMS');

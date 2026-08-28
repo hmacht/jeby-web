@@ -8,9 +8,7 @@
 	import CaptainSuggestions from '$lib/CaptainSuggestions.svelte';
 	import LiveReadings from '$lib/LiveReadings.svelte';
 	import MarineForecast from '$lib/MarineForecast.svelte';
-	import StormTracker from '$lib/StormTracker.svelte';
 	import TextReport from '$lib/TextReport.svelte';
-	import WeatherCard from '$lib/WeatherCard.svelte';
 	import WaveVisualizer from '$lib/WaveVisualizer.svelte';
 	import Modal from '$lib/Modal.svelte';
 	import SiteFooter from '$lib/SiteFooter.svelte';
@@ -44,7 +42,6 @@
 		{ id: 'bumpyscore', label: 'BumpyScore' },
 		{ id: 'images', label: 'Images' },
 		{ id: 'stations', label: 'Stations' },
-		{ id: 'weather', label: 'Weather' },
 		{ id: 'vessel', label: 'Vessel' }
 	];
 	let activeSection = $state(SECTIONS[0].id);
@@ -278,13 +275,8 @@
 			onShowDisclaimers={() => (showDisclaimers = true)}
 			onShowAdvice={() => (showAdvice = true)}
 		/>
-		<WaveVisualizer
-			waveHeight={readings.waveHeight}
-			waveLength={readings.waveLength}
-			wavePeriod={readings.wavePeriod}
-			{vessel}
-		/>
-		<StormTracker storms={data.storms} weather={data.weather} />
+		<WaveVisualizer stations={data.stations} {conditions} />
+		<MarineForecast forecast={data.forecast} />
 	</div>
 
 	<!-- Live station cameras: butted together in a horizontal scroll on mobile
@@ -342,22 +334,6 @@
 
 	<div id="stations" class="scroll-mt-24">
 		<LiveReadings stations={data.stations} {conditions} {stationImages} />
-	</div>
-
-	<!-- Decorative wave -->
-	<div class="my-12 flex justify-center">
-		<img src={squiggle} alt="" aria-hidden="true" class="h-3 w-auto" />
-	</div>
-
-	<h2 id="weather" class="scroll-mt-24 text-lg font-medium text-white">Forecast and Weather</h2>
-	<p class="mt-0.5 max-w-md text-sm leading-relaxed text-neutral-400">
-		What NOAA sees coming, and the weather ashore.
-	</p>
-
-	<!-- Marine forecast alongside the weather ashore. -->
-	<div class="mt-4 grid gap-4 lg:grid-cols-2">
-		<MarineForecast forecast={data.forecast} />
-		<WeatherCard weather={data.weather} />
 	</div>
 
 	<!-- Decorative wave -->

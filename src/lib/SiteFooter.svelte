@@ -6,6 +6,7 @@
 	import noaaLogo from '$lib/assets/NOAA-color-logo.png';
 	import whoiLogo from '$lib/assets/WHOI-color-logo.png';
 	import githubLogo from '$lib/assets/GitHub_Invertocat_Black.svg';
+	import vtSeal from '$lib/assets/Virginia_Tech_seal.svg';
 
 	const ORG = 'Jeby Oceanographic Lab';
 </script>
@@ -61,9 +62,17 @@
 				</ul>
 			</div>
 
-			<!-- Contact -->
+			<!-- Team + contact -->
 			<div>
-				<h3 class="text-sm font-semibold uppercase tracking-wide text-neutral-400">Contact</h3>
+				<h3 class="text-sm font-semibold uppercase tracking-wide text-neutral-400">Team</h3>
+				<div class="mt-3 flex items-center gap-2.5">
+					<img src={vtSeal} alt="" aria-hidden="true" class="h-6 w-6 shrink-0" />
+					<p class="text-sm leading-relaxed text-white">
+						A fantastic group of Virginia Tech engineers.
+					</p>
+				</div>
+
+				<h3 class="mt-6 text-sm font-semibold uppercase tracking-wide text-neutral-400">Contact</h3>
 				<a
 					href="mailto:henryamacht@gmail.com"
 					class="mt-3 inline-flex items-center gap-2 text-sm text-white underline-offset-2 transition hover:text-neutral-300 hover:underline"
