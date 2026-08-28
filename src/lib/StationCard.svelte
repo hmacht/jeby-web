@@ -48,7 +48,7 @@
 			onclick={() => onDetails(station)}
 			aria-label="Station details"
 			title="Station details"
-			class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-white/5 text-neutral-300 transition hover:bg-white/10 hover:text-white"
+			class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-white/5 text-neutral-300 transition hover:bg-white/10 hover:text-white"
 		>
 			<ArrowUpRight size={16} />
 		</button>

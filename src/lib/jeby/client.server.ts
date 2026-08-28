@@ -2,7 +2,16 @@
 // The `.server` suffix keeps the private API URL/key from ever reaching the browser.
 
 import { env } from '$env/dynamic/private';
-import type { Alert, Conditions, ForecastSummary, Images, Station, Vessel } from '$lib/jeby/models';
+import type {
+	Alert,
+	Conditions,
+	ForecastSummary,
+	Images,
+	Station,
+	Storms,
+	Vessel,
+	Weather
+} from '$lib/jeby/models';
 
 const API_BASE = env.JEBY_API_URL ?? 'http://localhost:8080';
 const API_ROOT = `${API_BASE}/api/v1`;
@@ -33,19 +42,28 @@ export function createJebyClient(fetch: Fetch) {
 			return getJSON<Vessel[]>(fetch, '/vessels');
 		},
 		stations() {
-			return getJSON<Station[]>(fetch, '/stations');
+			return getJSON<Station[]>(fetch, '/marine/stations');
 		},
 		conditions(vesselCode: string) {
-			return getJSON<Conditions>(fetch, `/conditions?vessel=${encodeURIComponent(vesselCode)}`);
+			return getJSON<Conditions>(
+				fetch,
+				`/marine/conditions?vessel=${encodeURIComponent(vesselCode)}`
+			);
 		},
 		images() {
-			return getJSON<Images>(fetch, '/images');
+			return getJSON<Images>(fetch, '/marine/images');
 		},
 		forecastSummary() {
-			return getJSON<ForecastSummary>(fetch, '/forecast/marine');
+			return getJSON<ForecastSummary>(fetch, '/marine/forecast');
 		},
 		activeAlerts() {
-			return getJSON<Alert[]>(fetch, '/alerts');
+			return getJSON<Alert[]>(fetch, '/marine/alerts');
+		},
+		currentWeather() {
+			return getJSON<Weather>(fetch, '/weather/current');
+		},
+		storms() {
+			return getJSON<Storms>(fetch, '/weather/storms');
 		}
 	};
 }

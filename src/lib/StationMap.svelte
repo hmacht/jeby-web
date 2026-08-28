@@ -12,13 +12,17 @@
 	let {
 		stations,
 		readings = {},
-		onSelect
+		onSelect,
+		variant = 'tinted'
 	}: {
 		stations: Station[];
 		readings?: Record<string, string | null>;
 		// A marker tap raises the station's details. The modal lives one level up
 		// so the cards beside the map open the same one.
 		onSelect: (station: Station) => void;
+		// 'tinted' is the station-colored pill with its icon; 'plain' is a bare
+		// monospace box, for the printout page.
+		variant?: 'tinted' | 'plain';
 	} = $props();
 
 	// Vineyard Sound — used when no stations place the view.
@@ -40,16 +44,17 @@
 		return html;
 	}
 
-	// Each station is a pill badge: its icon + live wave-height reading.
+	// Each station is a badge carrying its live wave-height reading: the tinted
+	// pill with its icon, or a bare monospace box.
 	function badgeIcon(L: typeof import('leaflet'), station: Station) {
-		const component = isMvco(station.code) ? RadioTower : LifeBuoy;
-		const tone = isMvco(station.code) ? 'station-badge--mvco' : 'station-badge--buoy';
-		const ft = readings[station.code];
-		return L.divIcon({
-			className: 'station-badge-marker',
-			html: `<div class="station-badge ${tone}">${iconHtml(component)}<span>${ft ?? '—'} ft</span></div>`,
-			iconSize: [0, 0]
-		});
+		const ft = readings[station.code] ?? '—';
+		const html =
+			variant === 'plain'
+				? `<div class="station-badge station-badge--plain"><span>${ft} ft</span></div>`
+				: `<div class="station-badge ${
+						isMvco(station.code) ? 'station-badge--mvco' : 'station-badge--buoy'
+					}">${iconHtml(isMvco(station.code) ? RadioTower : LifeBuoy)}<span>${ft} ft</span></div>`;
+		return L.divIcon({ className: 'station-badge-marker', html, iconSize: [0, 0] });
 	}
 
 	onMount(() => {
@@ -142,5 +147,18 @@
 
 	:global(.station-badge--buoy) {
 		background-image: linear-gradient(135deg, var(--color-buoy-bright), var(--color-buoy-deep));
+	}
+
+	/* The printout's marker: a bare monospace box, no tint and no icon, to sit
+	   with the teletype type on that page. */
+	:global(.station-badge--plain) {
+		gap: 0;
+		padding: 0.25rem 0.5rem;
+		border-radius: 3px;
+		border-color: rgb(255 255 255 / 0.45);
+		background-color: rgb(11 11 11 / 0.85);
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		font-weight: 500;
 	}
 </style>

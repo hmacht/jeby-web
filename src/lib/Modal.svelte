@@ -4,8 +4,15 @@
 	let {
 		open = $bindable(false),
 		title,
+		actions,
 		children
-	}: { open?: boolean; title?: string; children: Snippet } = $props();
+	}: {
+		open?: boolean;
+		title?: string;
+		// Rendered in the header beside the title, e.g. a copy button.
+		actions?: Snippet;
+		children: Snippet;
+	} = $props();
 
 	function close() {
 		open = false;
@@ -27,9 +34,10 @@
 			if (e.target === e.currentTarget) close();
 		}}
 	>
-		<!-- Panel -->
+		<!-- Panel. `text-left` because the modal sits wherever its owner does in the
+			DOM, and would otherwise inherit that spot's text alignment. -->
 		<div
-			class="relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-neutral-800 bg-background shadow-2xl"
+			class="relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-neutral-800 bg-background text-left shadow-2xl"
 			role="dialog"
 			aria-modal="true"
 			aria-label={title}
@@ -50,12 +58,17 @@
 				</svg>
 			</button>
 
-			{#if title}
-				<h2
-					class="shrink-0 border-b border-neutral-800 px-6 py-4 pr-14 text-lg font-semibold text-white"
+			{#if title || actions}
+				<div
+					class="flex shrink-0 items-center gap-3 border-b border-neutral-800 px-6 py-4 pr-14 text-white"
 				>
-					{title}
-				</h2>
+					{#if title}
+						<h2 class="min-w-0 truncate text-lg font-semibold">{title}</h2>
+					{/if}
+					{#if actions}
+						<div class="ml-auto shrink-0">{@render actions()}</div>
+					{/if}
+				</div>
 			{/if}
 
 			<div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">

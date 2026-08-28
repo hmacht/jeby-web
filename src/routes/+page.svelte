@@ -4,20 +4,22 @@
 	import { navigating, page } from '$app/state';
 	import AlertBanner from '$lib/AlertBanner.svelte';
 	import BumpyScoreCard from '$lib/BumpyScoreCard.svelte';
+	import BumpyScoreDetails from '$lib/BumpyScoreDetails.svelte';
 	import CaptainSuggestions from '$lib/CaptainSuggestions.svelte';
 	import LiveReadings from '$lib/LiveReadings.svelte';
 	import MarineForecast from '$lib/MarineForecast.svelte';
+	import StormTracker from '$lib/StormTracker.svelte';
+	import TextReport from '$lib/TextReport.svelte';
+	import WeatherCard from '$lib/WeatherCard.svelte';
 	import WaveVisualizer from '$lib/WaveVisualizer.svelte';
 	import Modal from '$lib/Modal.svelte';
 	import SiteFooter from '$lib/SiteFooter.svelte';
+	import StatusBar from '$lib/StatusBar.svelte';
 	import TopNav from '$lib/TopNav.svelte';
 	import TunedFor from '$lib/TunedFor.svelte';
 	import VesselSelect from '$lib/VesselSelect.svelte';
 	import WaveDiagram from '$lib/WaveDiagram.svelte';
 	import squiggle from '$lib/assets/squiggle.png';
-	import noaaLogo from '$lib/assets/NOAA-color-logo.png';
-	import whoiLogo from '$lib/assets/WHOI-color-logo.png';
-	import mericaFlag from '$lib/assets/merica.png';
 	import ogImage from '$lib/assets/jeyb-open-web.png';
 	import ZoomableImage from '$lib/ZoomableImage.svelte';
 	import LifeBuoy from '@lucide/svelte/icons/life-buoy';
@@ -29,10 +31,23 @@
 	let { data }: { data: PageData } = $props();
 
 	let showDisclaimers = $state(false);
+	let showAdvice = $state(false);
 
-	// The compact top nav slides in once the header scrolls out of view.
+	// The compact top nav slides in once the header scrolls out of view, and
+	// highlights whichever section is currently under the top of the viewport.
 	let headerEl: HTMLElement;
 	let showNav = $state(false);
+
+	// In document order — the scroll spy takes the first of these that's crossing
+	// the band near the top of the viewport.
+	const SECTIONS = [
+		{ id: 'bumpyscore', label: 'BumpyScore' },
+		{ id: 'images', label: 'Images' },
+		{ id: 'stations', label: 'Stations' },
+		{ id: 'weather', label: 'Weather' },
+		{ id: 'vessel', label: 'Vessel' }
+	];
+	let activeSection = $state(SECTIONS[0].id);
 
 	// Re-pull fresh NOAA data on an interval. invalidateAll() alone doesn't set
 	// `navigating`, so track our own flag for the loading indicator.
@@ -58,11 +73,41 @@
 		});
 		observer.observe(headerEl);
 
+		// Scroll spy: a narrow band near the top of the viewport decides which
+		// section is current. Track which sections cross it and take the topmost,
+		// keeping the last one when the band falls between sections.
+		let crossing: string[] = [];
+		const spy = new IntersectionObserver(
+			(entries) => {
+				for (const entry of entries) {
+					const sectionId = entry.target.id;
+					if (entry.isIntersecting) {
+						if (!crossing.includes(sectionId)) crossing.push(sectionId);
+					} else {
+						crossing = crossing.filter((c) => c !== sectionId);
+					}
+				}
+				const current = SECTIONS.find((s) => crossing.includes(s.id));
+				if (current) activeSection = current.id;
+			},
+			{ rootMargin: '-20% 0px -70% 0px' }
+		);
+		for (const section of SECTIONS) {
+			const el = document.getElementById(section.id);
+			if (el) spy.observe(el);
+		}
+
 		return () => {
 			clearInterval(id);
 			observer.disconnect();
+			spy.disconnect();
 		};
 	});
+
+	// Jump to a section from the nav.
+	function goToSection(sectionId: string) {
+		document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
 
 	const lastUpdated = $derived(
 		new Date(data.generatedAt).toLocaleTimeString('en-US', {
@@ -153,6 +198,9 @@
 <TopNav
 	visible={showNav}
 	title="The Jeby Report"
+	sections={SECTIONS}
+	{activeSection}
+	onSectionSelect={goToSection}
 	vessels={data.vessels}
 	selected={data.selectedVessel}
 	disabled={loading || data.vessels.length === 0}
@@ -189,69 +237,95 @@
 		/>
 	</header>
 
-	<!-- NOAA alerts -->
-	<div class="mt-8 max-w-xl space-y-3">
-		{#each data.alerts as alert (alert.event + alert.description)}
-			<AlertBanner level={alertLevel(alert.severity)} title={alert.event}>
-				{alert.description}
-			</AlertBanner>
-		{:else}
-			<AlertBanner level="info">NOAA has no active alerts for this area.</AlertBanner>
-		{/each}
+	<!-- NOAA alerts under the title, with the text report off to the right. -->
+	<div class="mt-6 flex items-start justify-between gap-6">
+		<div class="max-w-xl space-y-3">
+			{#each data.alerts as alert (alert.event + alert.description)}
+				<AlertBanner level={alertLevel(alert.severity)} title={alert.event}>
+					{alert.description}
+				</AlertBanner>
+			{:else}
+				<AlertBanner level="info" showIcon={false}>
+					NOAA has no active alerts for this area.
+				</AlertBanner>
+			{/each}
+		</div>
+
+		<div class="shrink-0">
+			<TextReport
+				location={data.location}
+				{when}
+				alerts={data.alerts}
+				{score}
+				quietHours={inQuietHours}
+				{analysis}
+				weather={data.weather}
+				storms={data.storms}
+				{vessel}
+				stations={data.stations}
+				{conditions}
+			/>
+		</div>
 	</div>
 
-	<!-- Cards: BumpyScore, AI captain suggestions, wave visualizer. -->
-	<div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+	<!-- Cards: BumpyScore, wave visualizer, storm tracker. -->
+	<div id="bumpyscore" class="mt-4 grid scroll-mt-24 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 		<BumpyScoreCard
 			{score}
 			{disclaimers}
 			{analysis}
 			quietHours={inQuietHours}
 			onShowDisclaimers={() => (showDisclaimers = true)}
+			onShowAdvice={() => (showAdvice = true)}
 		/>
-		<CaptainSuggestions {analysis} />
-		<WaveVisualizer waveHeight={readings.waveHeight} waveLength={readings.waveLength} {vessel} />
+		<WaveVisualizer
+			waveHeight={readings.waveHeight}
+			waveLength={readings.waveLength}
+			wavePeriod={readings.wavePeriod}
+			{vessel}
+		/>
+		<StormTracker storms={data.storms} weather={data.weather} />
 	</div>
 
-	<!-- Live buoy camera -->
-	{#if data.buoy360}
-		<figure class="mt-12">
-			<ZoomableImage
-				src={data.buoy360}
-				alt="Latest 360° view from the buoy camera"
-				class="w-full rounded-lg border border-border sm:rounded-2xl"
-			/>
-			<figcaption class="mt-2 flex items-center gap-1.5 text-sm text-neutral-500">
-				<LifeBuoy size={14} class="shrink-0" />
-				Latest 360° view from the buoy
-			</figcaption>
-		</figure>
-	{/if}
+	<!-- Live station cameras: butted together in a horizontal scroll on mobile
+		(buoy first), stacked full-width from sm up. -->
+	<div
+		id="images"
+		class="mt-10 flex scroll-mt-24 snap-x snap-mandatory gap-0.5 overflow-x-auto sm:block sm:overflow-visible"
+	>
+		{#if data.buoy360}
+			<figure class="shrink-0 snap-start sm:w-auto">
+				<ZoomableImage
+					src={data.buoy360}
+					alt="Latest 360° view from the buoy camera"
+					class="h-52 w-auto max-w-none rounded-lg border border-border sm:h-auto sm:w-full sm:max-w-full sm:rounded-2xl"
+				/>
+				<figcaption class="mt-2 flex items-center gap-1.5 text-sm text-neutral-500">
+					<LifeBuoy size={14} class="shrink-0" />
+					Latest 360° view from the buoy
+				</figcaption>
+			</figure>
+		{/if}
 
-	<!-- Live MVCO ASIT webcam -->
-	{#if data.asitcam2}
-		<figure class="mt-8">
-			<ZoomableImage
-				src={data.asitcam2}
-				alt="Latest view from the MVCO ASIT tower webcam"
-				class="w-full rounded-lg border border-border sm:rounded-2xl"
-			/>
-			<figcaption class="mt-2 flex items-center gap-1.5 text-sm text-neutral-500">
-				<RadioTower size={14} class="shrink-0" />
-				Latest view from the MVCO ASIT tower
-			</figcaption>
-		</figure>
-	{/if}
+		{#if data.asitcam2}
+			<figure class="shrink-0 snap-start sm:mt-8 sm:w-auto">
+				<ZoomableImage
+					src={data.asitcam2}
+					alt="Latest view from the MVCO ASIT tower webcam"
+					class="h-52 w-auto max-w-none rounded-lg border border-border sm:h-auto sm:w-full sm:max-w-full sm:rounded-2xl"
+				/>
+				<figcaption class="mt-2 flex items-center gap-1.5 text-sm text-neutral-500">
+					<RadioTower size={14} class="shrink-0" />
+					Latest view from the MVCO ASIT tower
+				</figcaption>
+			</figure>
+		{/if}
+	</div>
 
 	<!-- Wave diagram hidden for now -->
 	{#if false}
-		<!-- Decorative wave -->
-		<div class="my-12 flex justify-center">
-			<img src={squiggle} alt="" aria-hidden="true" class="h-3 w-auto" />
-		</div>
-
 		<!-- Wave-spacing diagram (scrolls horizontally on small screens to stay legible) -->
-		<div class="-mx-6 overflow-x-auto px-6 sm:mx-0 sm:px-0">
+		<div class="-mx-6 mt-12 overflow-x-auto px-6 sm:mx-0 sm:px-0">
 			<div class="min-w-[44rem]">
 				<WaveDiagram
 					waveLengthMeters={readings.waveLength}
@@ -266,70 +340,44 @@
 		<img src={squiggle} alt="" aria-hidden="true" class="h-3 w-auto" />
 	</div>
 
-	<LiveReadings stations={data.stations} {conditions} {stationImages} />
+	<div id="stations" class="scroll-mt-24">
+		<LiveReadings stations={data.stations} {conditions} {stationImages} />
+	</div>
 
 	<!-- Decorative wave -->
 	<div class="my-12 flex justify-center">
 		<img src={squiggle} alt="" aria-hidden="true" class="h-3 w-auto" />
 	</div>
 
-	<MarineForecast forecast={data.forecast} />
+	<h2 id="weather" class="scroll-mt-24 text-lg font-medium text-white">Forecast and Weather</h2>
+	<p class="mt-0.5 max-w-md text-sm leading-relaxed text-neutral-400">
+		What NOAA sees coming, and the weather ashore.
+	</p>
 
-	{#if vessel}
-		<!-- Decorative wave -->
-		<div class="my-12 flex justify-center">
-			<img src={squiggle} alt="" aria-hidden="true" class="h-3 w-auto" />
-		</div>
+	<!-- Marine forecast alongside the weather ashore. -->
+	<div class="mt-4 grid gap-4 lg:grid-cols-2">
+		<MarineForecast forecast={data.forecast} />
+		<WeatherCard weather={data.weather} />
+	</div>
 
+	<!-- Decorative wave -->
+	<div class="my-12 flex justify-center">
+		<img src={squiggle} alt="" aria-hidden="true" class="h-3 w-auto" />
+	</div>
+
+	<div id="vessel" class="scroll-mt-24">
 		<TunedFor {vessel} />
-	{/if}
+	</div>
 </main>
 
 <SiteFooter />
 
-<!-- Persistent live-status bar. -->
-<footer
-	class="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-2 border-t border-border bg-surface px-4 py-2 text-xs text-neutral-500 sm:px-6 sm:text-sm"
->
-	<p class="flex items-center gap-2">
-		<img src={noaaLogo} alt="" aria-hidden="true" class="h-5 w-5" />
-		<a
-			href="https://www.ndbc.noaa.gov/station_page.php?station=44020"
-			target="_blank"
-			rel="noopener noreferrer"
-			class="text-white underline underline-offset-2 transition hover:text-neutral-300"
-		>
-			NOAA
-		</a>
-		&amp;
-		<img src={whoiLogo} alt="" aria-hidden="true" class="h-5 w-5" />
-		<a
-			href="https://mvco.whoi.edu/"
-			target="_blank"
-			rel="noopener noreferrer"
-			class="text-white underline underline-offset-2 transition hover:text-neutral-300"
-		>
-			WHOI
-		</a>
-	</p>
+<StatusBar {lastUpdated} {loading} />
 
-	<div class="flex items-center gap-2">
-		{#if loading}
-			<span class="h-3 w-3 animate-spin rounded-full border-2 border-neutral-600 border-t-white"
-			></span>
-			Pulling data from NOAA
-		{:else}
-			<span class="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" aria-hidden="true"></span>
-			<span class="italic">Last updated {lastUpdated}</span>
-		{/if}
-		<img src={mericaFlag} alt="American flag" class="h-2 w-auto self-center" />
-	</div>
-</footer>
+<Modal bind:open={showDisclaimers} title="BumpyScore™ Details">
+	<BumpyScoreDetails {score} {disclaimers} {analysis} {vessel} quietHours={inQuietHours} />
+</Modal>
 
-<Modal bind:open={showDisclaimers} title="Today's BumpyScore™ Disclaimers">
-	<ul class="list-disc space-y-2 pl-5 text-sm leading-relaxed text-neutral-300">
-		{#each disclaimers as d (d)}
-			<li>{d}</li>
-		{/each}
-	</ul>
+<Modal bind:open={showAdvice} title="Captain's advice">
+	<CaptainSuggestions {analysis} />
 </Modal>

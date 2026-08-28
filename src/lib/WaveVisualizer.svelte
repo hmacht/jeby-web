@@ -11,10 +11,12 @@
 	let {
 		waveHeight,
 		waveLength,
+		wavePeriod,
 		vessel
 	}: {
 		waveHeight: number | null; // meters
 		waveLength: number | null; // meters
+		wavePeriod: number | null; // seconds
 		vessel: Vessel | null;
 	} = $props();
 
@@ -29,15 +31,21 @@
 	});
 
 	const W = 320;
-	const H = 132;
+	// The gap between BASELINE and H is the water below the wave — the hatched
+	// band that runs to the bottom edge of the card.
+	const H = 152;
 	const BASELINE = 84;
 
 	// Crest height in px from wave height (ft), exaggerated and capped.
 	const amp = $derived(heightFt == null ? 10 : Math.min(32, Math.max(9, heightFt * 6)));
-	// Px per wavelength from wave length (ft): longer swells spread the crests out.
-	const wavelengthPx = $derived(
-		lengthFt == null ? 150 : Math.min(300, Math.max(80, lengthFt * 1.1))
-	);
+
+	// The graph always shows the same stretch of ocean, so the crests and the boat
+	// share one scale and the picture reads the same from day to day.
+	const VIEW_FEET = 300;
+	const pxPerFoot = W / VIEW_FEET;
+	// Px per wavelength: longer swells spread the crests out. Floored so a short
+	// chop doesn't collapse into noise.
+	const wavelengthPx = $derived(Math.max(16, (lengthFt ?? 60) * pxPerFoot));
 
 	// A sine wave across the width.
 	const wavePath = $derived.by(() => {
@@ -60,7 +68,7 @@
 	const boat = $derived.by(() => {
 		if (boatLengthFt == null || lengthFt == null || lengthFt <= 0) return null;
 		const left = firstCrestX;
-		const raw = boatLengthFt * (wavelengthPx / lengthFt);
+		const raw = boatLengthFt * pxPerFoot;
 		const right = left + Math.max(10, Math.min(raw, W - left - 6));
 		const waveY = (x: number) => BASELINE - amp * Math.sin((2 * Math.PI * x) / wavelengthPx);
 		return { left, right, leftY: waveY(left), rightY: waveY(right) };
@@ -69,16 +77,36 @@
 	const fmt = (v: number | null, digits = 0) => (v == null ? '—' : v.toFixed(digits));
 </script>
 
-<section class="flex flex-col rounded-2xl border border-border bg-surface p-5">
+<section
+	class="flex min-h-80 flex-col overflow-hidden rounded-2xl border border-border bg-surface p-5"
+>
 	<div class="flex items-center gap-2">
 		<WavesHorizontal size={18} class="shrink-0 text-sky-400" />
 		<h3 class="text-base font-medium text-white">Wave Visualizer</h3>
 	</div>
 
-	<div class="mt-3 flex-1">
+	<dl class="mt-4 grid grid-cols-3 gap-3">
+		<div>
+			<dt class="text-xs text-neutral-400">Height</dt>
+			<dd class="mt-0.5 text-2xl font-semibold tabular-nums text-white">{fmt(heightFt, 1)} ft</dd>
+		</div>
+		<div>
+			<dt class="text-xs text-neutral-400">Length</dt>
+			<dd class="mt-0.5 text-2xl font-semibold tabular-nums text-white">{fmt(lengthFt)} ft</dd>
+		</div>
+		<div>
+			<dt class="text-xs text-neutral-400">Period</dt>
+			<dd class="mt-0.5 text-2xl font-semibold tabular-nums text-white">{fmt(wavePeriod)} s</dd>
+		</div>
+	</dl>
+
+	<!-- The wave bleeds past the card padding to touch the left, right, and bottom
+		edges. `mt-auto` rather than `flex-1`: the svg keeps its aspect ratio, so a
+		stretched wrapper would leave a gap under it — this puts any slack above. -->
+	<div class="-mx-5 -mb-5 mt-auto pt-4">
 		<svg
 			viewBox="0 0 {W} {H}"
-			class="w-full"
+			class="block w-full"
 			role="img"
 			aria-label="Wave height and length with the selected boat's length to scale"
 		>
@@ -151,6 +179,11 @@
 			<!-- Skinny boat pill (left edge on the first crest) + markers where its ends
 				meet the wave. -->
 			{#if boat}
+				{#if vessel}
+					<text x={boat.left} y={BOAT_Y - 7} fill="#a3a3a3" font-size="11">
+						{vessel.name} &middot; {vessel.length}
+					</text>
+				{/if}
 				<rect
 					x={boat.left}
 					y={BOAT_Y}
@@ -166,22 +199,4 @@
 			{/if}
 		</svg>
 	</div>
-
-	{#if vessel}
-		<div class="mt-1 flex items-center gap-2 text-xs text-neutral-400">
-			<span class="h-1.5 w-8 shrink-0 rounded-full bg-neutral-200"></span>
-			<span class="truncate">{vessel.name} · {vessel.length}</span>
-		</div>
-	{/if}
-
-	<dl class="mt-3 grid grid-cols-2 gap-4 border-t border-border pt-3">
-		<div>
-			<dt class="text-xs text-neutral-400">Wave height</dt>
-			<dd class="mt-0.5 text-lg font-semibold tabular-nums text-white">{fmt(heightFt, 1)} ft</dd>
-		</div>
-		<div>
-			<dt class="text-xs text-neutral-400">Wave length</dt>
-			<dd class="mt-0.5 text-lg font-semibold tabular-nums text-white">{fmt(lengthFt)} ft</dd>
-		</div>
-	</dl>
 </section>

@@ -128,8 +128,62 @@ export interface Station {
 	// Charted depth at the mooring, shown on the station card the way the app
 	// shows it.
 	depthMeters: number;
+	// The station's current camera frame, null when unavailable.
+	liveImageUrl: string | null;
 	profileUrl: string;
 	detailsUrl: string;
+}
+
+// Current land weather from the NWS station at Martha's Vineyard Airport. The
+// marine endpoints cover the water; this covers the air. Values are null when
+// the station didn't report them.
+export interface Weather {
+	station: string;
+	stationName: string;
+	observedAt: string | null;
+	summary: string | null;
+	// An icon token for the current weather (e.g. "clear", "partly_cloudy"),
+	// with the sun/moon variant picked by isDaytime.
+	condition: string | null;
+	isDaytime: boolean | null;
+	iconUrl: string | null;
+	airTemp: Measurement;
+	feelsLike: Measurement;
+	dewpoint: Measurement;
+	humidity: Measurement;
+	windSpeed: Measurement;
+	windGust: Measurement;
+	windDirectionDegrees: Measurement;
+	windDirectionCardinal: string | null;
+	pressure: Measurement;
+	visibility: Measurement;
+}
+
+// One entry from the station's present-weather list, e.g. light freezing rain.
+export interface WeatherPhenomenon {
+	weather: string;
+	intensity: string | null;
+	modifier: string | null;
+	text: string;
+}
+
+// One forecast period, flagged for whether its wording calls for storms.
+export interface StormPeriod {
+	name: string;
+	forecast: string;
+	stormy: boolean;
+}
+
+// The combined storm picture: two quick booleans plus the evidence behind them.
+export interface Storms {
+	stormNow: boolean;
+	stormExpectedToday: boolean;
+	observed: WeatherPhenomenon[];
+	alerts: Alert[];
+	// Highest chance across the rest of today.
+	thunderChance: Measurement;
+	precipitationChance: Measurement;
+	outlook: StormPeriod[];
 }
 
 // Station codes from the /stations registry. Centralized so a code change (or a

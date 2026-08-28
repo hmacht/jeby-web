@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 
+/* Inter, self-hosted so it isn't a third-party request on every load. */
+@import '@fontsource-variable/inter';
+
 @theme {
 	--color-background: #0b0b0b;
 	--color-surface: #111111;
@@ -20,7 +23,7 @@
 	--color-buoy-deep: #032547;
 	--color-buoy-bright: #0864c2;
 
-	--font-sans: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+	--font-sans: 'Inter Variable', 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
 html,

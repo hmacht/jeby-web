@@ -1,0 +1,168 @@
+// The whole report as monospace text: header, alerts, score on its scale, the
+// weather ashore, and the station readings underneath.
+//
+// It renders two ways. On screen the score bar is drawn with block characters,
+// which look the part in a browser. For the clipboard it falls back to plain
+// ASCII — those blocks come out as empty boxes in Messages and plenty of
+// editors, and copied text has to survive wherever it's pasted.
+
+import {
+	isMvco,
+	stationConditions,
+	stationReadingRows,
+	type Alert,
+	type BumpyAnalysis,
+	type Conditions,
+	type Station,
+	type Storms,
+	type Vessel,
+	type Weather
+} from '$lib/jeby/models';
+import { cToF } from '$lib/jeby/utils';
+
+export interface ReportInput {
+	location: string;
+	when: string;
+	alerts: Alert[];
+	score: number | null;
+	quietHours: boolean;
+	analysis: BumpyAnalysis | null;
+	weather: Weather | null;
+	storms: Storms | null;
+	vessel: Vessel | null;
+	stations: Station[];
+	conditions: Conditions | null;
+}
+
+// The storm picture in one line, the way the tracker card puts it.
+export function stormStatus(storms: Storms | null): string {
+	if (!storms) return 'Unavailable';
+	if (storms.stormNow) return 'Storming now';
+	if (storms.stormExpectedToday) return 'Storms expected today';
+	return 'No storms expected';
+}
+
+// Everything is drawn to a fixed column width so the bar, its scale, and the
+// reading columns line up in a monospace face.
+const WIDTH = 40;
+
+const clamp = (value: number) => Math.min(100, Math.max(0, value));
+
+// The bar we show: block characters, with the tick row beneath.
+function blockBar(value: number | null): string {
+	if (value == null) return '░'.repeat(WIDTH);
+	const filled = Math.round((clamp(value) / 100) * WIDTH);
+	return '▍'.repeat(filled) + '░'.repeat(WIDTH - filled);
+}
+
+// Tick labels placed under the columns they mark.
+function blockScale(): string {
+	const line = new Array(WIDTH + 3).fill(' ');
+	const put = (text: string, col: number) => {
+		for (let i = 0; i < text.length; i++) line[col + i] = text[i];
+	};
+	put('0', 0);
+	put('25', 9);
+	put('50', 19);
+	put('75', 29);
+	put('100', 37);
+	return line.join('').trimEnd();
+}
+
+// The bar we copy: twenty cells, so each one is five points, and the score
+// rounds to the nearest cell. The ends carry the scale.
+const BAR_CELLS = 20;
+function asciiBar(value: number | null): string {
+	let cells = '-'.repeat(BAR_CELLS);
+	if (value != null) {
+		const filled = Math.round((clamp(value) / 100) * BAR_CELLS);
+		cells = '#'.repeat(filled) + '-'.repeat(BAR_CELLS - filled);
+	}
+	return `0 [${cells}] 100`;
+}
+
+// One report, rendered either for the screen or for the clipboard. Only the
+// score bar differs.
+export function buildReport(input: ReportInput, plainText = false): string {
+	const {
+		location,
+		when,
+		alerts,
+		score,
+		quietHours,
+		analysis,
+		weather,
+		storms,
+		vessel,
+		stations,
+		conditions
+	} = input;
+	const lines: string[] = [];
+
+	lines.push('THE JEBY REPORT');
+	lines.push(`${location} · ${when}`);
+	lines.push('='.repeat(WIDTH));
+	lines.push('');
+
+	if (alerts.length) {
+		for (const alert of alerts) lines.push(`! ${alert.event}: ${alert.description}`);
+	} else {
+		lines.push('NOAA has no active alerts for this area.');
+	}
+	lines.push('');
+
+	const scoreText = quietHours
+		? 'quiet hours'
+		: score == null
+			? 'not computed yet'
+			: `${score} /100`;
+	lines.push(`BUMPYSCORE   ${scoreText}`);
+	if (vessel) lines.push(`TUNED FOR    ${vessel.name}`);
+
+	const temp = weather?.airTemp.value == null ? '—' : `${Math.round(cToF(weather.airTemp.value))}°`;
+	lines.push(`WEATHER      ${temp}${weather?.summary ? `  ${weather.summary}` : ''}`);
+	lines.push('');
+
+	if (plainText) {
+		lines.push(asciiBar(score));
+	} else {
+		lines.push(blockBar(score));
+		lines.push(blockScale());
+	}
+	lines.push('');
+
+	lines.push('AI ANALYSIS');
+	lines.push('-'.repeat(WIDTH));
+	lines.push(`  The ride    ${analysis?.bumpy ?? 'not available right now.'}`);
+	lines.push('');
+	lines.push(`  Captain     ${analysis?.steering ?? 'not available right now.'}`);
+	lines.push('');
+
+	lines.push('STORMS');
+	lines.push('-'.repeat(WIDTH));
+	lines.push(`  ${'Status'.padEnd(14)}${stormStatus(storms)}`);
+	if (storms) {
+		const pct = (v: number | null) => (v == null ? '—' : `${Math.round(v)}%`);
+		lines.push(`  ${'Thunder'.padEnd(14)}${pct(storms.thunderChance.value)}`);
+		lines.push(`  ${'Precipitation'.padEnd(14)}${pct(storms.precipitationChance.value)}`);
+		for (const period of storms.outlook) {
+			lines.push(`  ${period.name.padEnd(14)}${period.forecast}`);
+		}
+	}
+	lines.push('');
+
+	lines.push('STATION DATA');
+	lines.push('-'.repeat(WIDTH));
+	for (const station of stations) {
+		lines.push(station.name);
+		lines.push(
+			`  ${isMvco(station.code) ? 'MVCO Sensor' : 'NOAA Buoy'} · ${Math.round(station.depthMeters)} m deep`
+		);
+		for (const row of stationReadingRows(stationConditions(conditions, station.code))) {
+			lines.push(`  ${row.label.padEnd(14)}${row.value}`);
+		}
+		lines.push('');
+	}
+
+	return lines.join('\n').trimEnd();
+}

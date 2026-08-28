@@ -1,9 +1,9 @@
 <script lang="ts">
-	// NOAA marine forecast card: a preview of the next forecast period. The circle
-	// button in the header opens the full multi-period forecast in a modal. Owns
-	// its own modal state.
+	// NOAA marine forecast card: a preview of the next couple of periods. The
+	// circle button in the header opens the full multi-period forecast in a modal.
+	// Owns its own modal state.
+	import Binoculars from '@lucide/svelte/icons/binoculars';
 	import CloudSun from '@lucide/svelte/icons/cloud-sun';
-	import List from '@lucide/svelte/icons/list';
 	import Modal from '$lib/Modal.svelte';
 	import type { ForecastSummary } from '$lib/jeby/models';
 
@@ -24,14 +24,14 @@
 				onclick={() => (showForecast = true)}
 				aria-label="View full forecast"
 				title="View full forecast"
-				class="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-white/5 text-neutral-300 transition hover:bg-white/10 hover:text-white"
+				class="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-white/5 text-neutral-300 transition hover:bg-white/10 hover:text-white"
 			>
-				<List size={16} />
+				<Binoculars size={16} />
 			</button>
 		{/if}
 	</div>
 
-	<div class="mt-4 grid gap-x-10 gap-y-3 sm:grid-cols-2">
+	<div class="mt-4 flex-1 space-y-3">
 		{#each periods.slice(0, 2) as period (period.header)}
 			<div>
 				<h4 class="text-sm font-semibold text-white">{period.header}</h4>
