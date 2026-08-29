@@ -174,16 +174,59 @@ export interface StormPeriod {
 	stormy: boolean;
 }
 
-// The combined storm picture: two quick booleans plus the evidence behind them.
+// The combined storm picture: two quick flags plus the evidence behind them.
 export interface Storms {
-	stormNow: boolean;
-	stormExpectedToday: boolean;
+	// Tri-state, matching the backend: true means a storm was found, false means
+	// every source answered and none of them did, and null means a source we
+	// needed was unavailable — we don't know. Never treat null as false; that
+	// renders an all-clear to someone deciding whether to leave the harbor.
+	stormNow: boolean | null;
+	stormExpectedToday: boolean | null;
+	// The sources that didn't answer, empty when everything did. Any entry means
+	// the evidence below is partial.
+	unavailable: string[];
 	observed: WeatherPhenomenon[];
 	alerts: Alert[];
 	// Highest chance across the rest of today.
 	thunderChance: Measurement;
 	precipitationChance: Measurement;
 	outlook: StormPeriod[];
+}
+
+// The storm picture collapsed to the one state the UI paints. 'unavailable' is
+// the whole endpoint being down; 'unknown' is reaching it but having a source
+// we needed go missing.
+export type StormLevel = 'now' | 'today' | 'unknown' | 'clear' | 'unavailable';
+
+// Precedence mirrors the backend's: a storm we actually found outranks a source
+// that went missing, and a missing source outranks an all-clear. The last step
+// is the point of the tri-state — 'clear' has to mean every source answered and
+// none saw a storm, not merely that nothing came back true.
+export function stormLevel(storms: Storms | null): StormLevel {
+	if (!storms) return 'unavailable';
+	if (storms.stormNow === true) return 'now';
+	if (storms.stormExpectedToday === true) return 'today';
+	if (storms.stormNow == null || storms.stormExpectedToday == null) return 'unknown';
+	return 'clear';
+}
+
+// Backend source names, in the words the report uses for them.
+const STORM_SOURCE_LABELS: Record<string, string> = {
+	observation: 'station observations',
+	alerts: 'NWS alerts',
+	gridpoint: 'hourly probabilities',
+	forecast: 'the forecast periods'
+};
+
+// The missing sources as a readable list, or null when nothing is missing. A
+// storm can be found with a source still down, so this is worth showing
+// alongside any state rather than only the unknown one.
+export function stormsMissing(storms: Storms | null): string | null {
+	const sources = storms?.unavailable ?? [];
+	if (sources.length === 0) return null;
+	const labels = sources.map((s) => STORM_SOURCE_LABELS[s] ?? s);
+	if (labels.length === 1) return labels[0];
+	return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
 }
 
 // Station codes from the /stations registry. Centralized so a code change (or a

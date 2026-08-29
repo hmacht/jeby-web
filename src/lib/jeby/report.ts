@@ -10,6 +10,8 @@ import {
 	isMvco,
 	stationConditions,
 	stationReadingRows,
+	stormLevel,
+	stormsMissing,
 	type Alert,
 	type BumpyAnalysis,
 	type Conditions,
@@ -36,10 +38,18 @@ export interface ReportInput {
 
 // The storm picture in one line, the way the tracker card puts it.
 export function stormStatus(storms: Storms | null): string {
-	if (!storms) return 'Unavailable';
-	if (storms.stormNow) return 'Storming now';
-	if (storms.stormExpectedToday) return 'Storms expected today';
-	return 'No storms expected';
+	switch (stormLevel(storms)) {
+		case 'unavailable':
+			return 'Unavailable';
+		case 'now':
+			return 'Storming now';
+		case 'today':
+			return 'Storms expected today';
+		case 'unknown':
+			return 'Unknown';
+		case 'clear':
+			return 'No storms expected';
+	}
 }
 
 // Everything is drawn to a fixed column width so the bar, its scale, and the
@@ -162,6 +172,9 @@ export function buildReport(input: ReportInput, plainText = false): string {
 	lines.push('-'.repeat(WIDTH));
 	lines.push(`  ${'Status'.padEnd(14)}${stormStatus(storms)}`);
 	if (storms) {
+		// Named so a partial picture doesn't read as a complete one.
+		const missing = stormsMissing(storms);
+		if (missing) lines.push(...wrap(`Could not reach ${missing}.`));
 		const pct = (v: number | null) => (v == null ? '—' : `${Math.round(v)}%`);
 		lines.push(`  ${'Thunder'.padEnd(14)}${pct(storms.thunderChance.value)}`);
 		lines.push(`  ${'Precipitation'.padEnd(14)}${pct(storms.precipitationChance.value)}`);

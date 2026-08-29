@@ -12,8 +12,38 @@ const DEFAULT_VESSEL = 'F215';
 
 type Fetch = typeof globalThis.fetch;
 
-export async function loadReport(fetch: Fetch, url: URL) {
+// The slice of the load event this needs. Taking the event rather than loose
+// arguments means a route can't forget to pass one along.
+interface ReportEvent {
+	fetch: Fetch;
+	url: URL;
+	setHeaders: (headers: Record<string, string>) => void;
+}
+
+// The report is the same for every visitor at a given URL — the vessel is a
+// query param and there's nothing per-user in it — so a shared cache can serve
+// one render to everyone. s-maxage only binds CDNs, not browsers, so switching
+// vessels still re-renders for the person doing it. stale-while-revalidate lets
+// the edge answer instantly from a slightly old copy while it refreshes behind
+// the request, which is the same bargain the backend's upstream cache makes.
+const CACHE_CONTROL = 'public, s-maxage=60, stale-while-revalidate=600';
+
+export async function loadReport({ fetch, url, setHeaders }: ReportEvent) {
 	const jeby = createJebyClient(fetch);
+
+	setHeaders({ 'cache-control': CACHE_CONTROL });
+
+	// Started before the vessel is known, because none of them take one. Only
+	// conditions() does, and awaiting the registry in front of all seven put a
+	// whole round trip on the critical path for nothing. Calling without `await`
+	// starts the request now and collects it below; getJSON never rejects, so
+	// these can't become unhandled rejections while they're in flight.
+	const forecastPending = jeby.forecastSummary();
+	const alertsPending = jeby.activeAlerts();
+	const imagesPending = jeby.images();
+	const stationsPending = jeby.stations();
+	const weatherPending = jeby.currentWeather();
+	const stormsPending = jeby.storms();
 
 	const vessels = (await jeby.vessels()) ?? [];
 
@@ -28,12 +58,12 @@ export async function loadReport(fetch: Fetch, url: URL) {
 
 	const [conditions, forecast, alerts, images, stations, weather, storms] = await Promise.all([
 		jeby.conditions(vesselCode),
-		jeby.forecastSummary(),
-		jeby.activeAlerts(),
-		jeby.images(),
-		jeby.stations(),
-		jeby.currentWeather(),
-		jeby.storms()
+		forecastPending,
+		alertsPending,
+		imagesPending,
+		stationsPending,
+		weatherPending,
+		stormsPending
 	]);
 
 	return {

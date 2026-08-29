@@ -8,7 +8,13 @@
 	import List from '@lucide/svelte/icons/list';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import Modal from '$lib/Modal.svelte';
-	import type { ForecastSummary, Storms, Weather } from '$lib/jeby/models';
+	import {
+		stormLevel,
+		stormsMissing,
+		type ForecastSummary,
+		type Storms,
+		type Weather
+	} from '$lib/jeby/models';
 	import { cToF, mpsToMph } from '$lib/jeby/utils';
 
 	let {
@@ -25,43 +31,62 @@
 
 	const periods = $derived(forecast?.periods ?? []);
 
-	// Storming now beats expected, which beats all clear. Each state carries its
-	// own palette for the band.
+	const level = $derived(stormLevel(storms));
+
+	// Named on any state: a storm can be found with a source still down. The
+	// unknown band folds it into its own subtitle, so the standalone note below
+	// is for the states that don't.
+	const missing = $derived(stormsMissing(storms));
+
+	// Storming now beats expected, which beats an unknown, which beats all clear.
+	// Each state carries its own palette for the band. Unknown deliberately does
+	// not get the green one: an all-clear is a claim we can't make when a source
+	// we needed never answered.
 	const status = $derived.by(() => {
-		if (!storms) {
-			return {
-				text: 'Storm data unavailable',
-				sub: 'Could not reach the forecast right now.',
-				accent: '#a3a3a3',
-				ring: 'border-neutral-700',
-				glow: 'bg-neutral-500/10'
-			};
+		switch (level) {
+			case 'unavailable':
+				return {
+					text: 'Storm data unavailable',
+					sub: 'Could not reach the forecast right now.',
+					accent: '#a3a3a3',
+					ring: 'border-neutral-700',
+					glow: 'bg-neutral-500/10'
+				};
+			case 'now':
+				return {
+					text: 'Storming now',
+					sub: 'Active storm conditions reported at the station.',
+					accent: '#ef4444',
+					ring: 'border-red-500/40',
+					glow: 'bg-red-500/20'
+				};
+			case 'today':
+				return {
+					text: 'Storms expected today',
+					sub: 'Conditions are lining up for storms before the day is out.',
+					accent: '#fbbf24',
+					ring: 'border-amber-400/40',
+					glow: 'bg-amber-400/20'
+				};
+			case 'unknown':
+				return {
+					text: 'Storm data incomplete',
+					sub: missing
+						? `Could not reach ${missing}, so this is not a full picture.`
+						: 'Part of the storm picture is missing, so this is not an all clear.',
+					accent: '#a3a3a3',
+					ring: 'border-neutral-700',
+					glow: 'bg-neutral-500/10'
+				};
+			case 'clear':
+				return {
+					text: 'All clear',
+					sub: 'No storms in the picture for the rest of today.',
+					accent: '#34d399',
+					ring: 'border-emerald-400/30',
+					glow: 'bg-emerald-400/15'
+				};
 		}
-		if (storms.stormNow) {
-			return {
-				text: 'Storming now',
-				sub: 'Active storm conditions reported at the station.',
-				accent: '#ef4444',
-				ring: 'border-red-500/40',
-				glow: 'bg-red-500/20'
-			};
-		}
-		if (storms.stormExpectedToday) {
-			return {
-				text: 'Storms expected today',
-				sub: 'Conditions are lining up for storms before the day is out.',
-				accent: '#fbbf24',
-				ring: 'border-amber-400/40',
-				glow: 'bg-amber-400/20'
-			};
-		}
-		return {
-			text: 'All clear',
-			sub: 'No storms in the picture for the rest of today.',
-			accent: '#34d399',
-			ring: 'border-emerald-400/30',
-			glow: 'bg-emerald-400/15'
-		};
 	});
 
 	// Radial gauge geometry.
@@ -137,6 +162,12 @@
 			<p class="mt-1 text-sm leading-relaxed text-neutral-400">{status.sub}</p>
 		</div>
 	</div>
+
+	{#if missing && level !== 'unknown'}
+		<p class="relative mt-4 text-sm text-neutral-500">
+			Could not reach {missing}, so the picture below is partial.
+		</p>
+	{/if}
 
 	{#if storms?.observed.length}
 		<p class="relative mt-5 border-t border-border pt-4 text-sm text-neutral-300">

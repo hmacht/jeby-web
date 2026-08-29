@@ -4,21 +4,30 @@
 	// the rest of today's outlook.
 	import CloudLightning from '@lucide/svelte/icons/cloud-lightning';
 	import WeatherSummary from '$lib/WeatherSummary.svelte';
-	import type { Storms, Weather } from '$lib/jeby/models';
+	import { stormLevel, stormsMissing, type Storms, type Weather } from '$lib/jeby/models';
 
 	let { storms, weather }: { storms: Storms | null; weather: Weather | null } = $props();
 
-	// The headline: storming now beats expected, which beats all clear.
+	// The headline: storming now beats expected, which beats an unknown, which
+	// beats all clear. Unknown is painted neutral rather than green — we can't
+	// promise a clear day on evidence we never got.
 	const status = $derived.by(() => {
-		if (!storms) return { text: 'Unavailable', tone: 'text-neutral-400', dot: 'bg-neutral-600' };
-		if (storms.stormNow) {
-			return { text: 'Storming now', tone: 'text-red-400', dot: 'bg-red-500' };
+		switch (stormLevel(storms)) {
+			case 'unavailable':
+				return { text: 'Unavailable', tone: 'text-neutral-400', dot: 'bg-neutral-600' };
+			case 'now':
+				return { text: 'Storming now', tone: 'text-red-400', dot: 'bg-red-500' };
+			case 'today':
+				return { text: 'Storms expected today', tone: 'text-amber-400', dot: 'bg-amber-400' };
+			case 'unknown':
+				return { text: 'Storm data incomplete', tone: 'text-neutral-300', dot: 'bg-neutral-400' };
+			case 'clear':
+				return { text: 'No storms expected', tone: 'text-emerald-400', dot: 'bg-emerald-400' };
 		}
-		if (storms.stormExpectedToday) {
-			return { text: 'Storms expected today', tone: 'text-amber-400', dot: 'bg-amber-400' };
-		}
-		return { text: 'No storms expected', tone: 'text-emerald-400', dot: 'bg-emerald-400' };
 	});
+
+	// Shown under any state: a storm can be found with a source still down.
+	const missing = $derived(stormsMissing(storms));
 
 	const pct = (v: number | null) => (v == null ? '—' : `${Math.round(v)}%`);
 </script>
@@ -41,6 +50,10 @@
 		<span class="h-2 w-2 shrink-0 rounded-full {status.dot}" aria-hidden="true"></span>
 		<span class="text-base font-semibold {status.tone}">{status.text}</span>
 	</div>
+
+	{#if missing}
+		<p class="mt-1.5 text-xs leading-relaxed text-neutral-500">Could not reach {missing}.</p>
+	{/if}
 
 	{#if storms}
 		<!-- What the station is reporting right now -->

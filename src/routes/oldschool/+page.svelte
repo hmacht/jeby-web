@@ -18,7 +18,14 @@
 	import VesselSelect from '$lib/VesselSelect.svelte';
 	import WaveAnimation from '$lib/WaveAnimation.svelte';
 	import ZoomableImage from '$lib/ZoomableImage.svelte';
-	import { isMvco, stationConditions, stationReadingRows, type Station } from '$lib/jeby/models';
+	import {
+		isMvco,
+		stationConditions,
+		stationReadingRows,
+		stormLevel,
+		stormsMissing,
+		type Station
+	} from '$lib/jeby/models';
 	import { stormStatus } from '$lib/jeby/report';
 	import { shimmer } from '$lib/shimmer';
 	import { cToF, metersToFeet } from '$lib/jeby/utils';
@@ -80,6 +87,23 @@
 	);
 	const pct = (v: number | null) => (v == null ? '—' : `${Math.round(v)}%`);
 
+	// Green is reserved for a genuine all-clear; an unknown or an unreachable
+	// endpoint stays neutral rather than reading as good news.
+	const stormTone = $derived.by(() => {
+		switch (stormLevel(data.storms)) {
+			case 'now':
+				return 'text-red-400';
+			case 'today':
+				return 'text-amber-400';
+			case 'clear':
+				return 'text-emerald-400';
+			case 'unknown':
+			case 'unavailable':
+				return 'text-neutral-400';
+		}
+	});
+	const stormsUnavailable = $derived(stormsMissing(data.storms));
+
 	// Wave height per station, in feet, for the map's badges.
 	const stationWaveHeights = $derived.by(() => {
 		const heights: Record<string, string | null> = {};
@@ -139,7 +163,7 @@
 	const SUBRULE = '-'.repeat(40);
 	// Held as a value so the spacing survives the template's whitespace handling.
 	const TICKS = '0        25        50        75       100';
-	const TITLE = 'The Jeby Report — printout';
+	const TITLE = 'The Jeby Report';
 </script>
 
 <svelte:head>
@@ -147,8 +171,8 @@
 	<meta name="description" content="The Jeby Report as a plain-text printout." />
 </svelte:head>
 
-<main class="min-h-screen px-6 pb-24 pt-10 text-white sm:px-12 lg:px-16">
-	<div class="mx-auto max-w-4xl font-mono text-xs leading-relaxed text-neutral-300 sm:text-sm">
+<main class="min-h-screen px-4 pt-10 text-white sm:px-12 lg:px-16">
+	<div class="mx-auto max-w-4xl font-mono text-sm leading-relaxed text-neutral-300">
 		<!-- Controls -->
 		<div class="flex flex-wrap items-center justify-between gap-4 pb-8">
 			<a
@@ -234,7 +258,9 @@
 				<div class="mt-5 overflow-hidden whitespace-nowrap">
 					<ScoreBlocks {score} cells={40} />
 				</div>
-				<p aria-hidden="true" class="mt-1 whitespace-pre text-neutral-500">{TICKS}</p>
+				<p aria-hidden="true" class="mt-1 overflow-hidden whitespace-pre text-neutral-500">
+					{TICKS}
+				</p>
 			</div>
 
 			<div class="w-full lg:w-[22rem] lg:shrink-0">
@@ -260,21 +286,19 @@
 		</div>
 
 		<!-- Storms -->
-		<h2 class="mt-8 uppercase tracking-wide text-white">Storms</h2>
+		<h2 class="mt-8 uppercase tracking-wide text-white">Storm Tracker</h2>
 		<p aria-hidden="true" class="overflow-hidden whitespace-nowrap text-neutral-700">{SUBRULE}</p>
 		<dl class="mt-2">
 			<div class="flex gap-2">
 				<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">Status</dt>
-				<dd
-					class={data.storms?.stormNow
-						? 'text-red-400'
-						: data.storms?.stormExpectedToday
-							? 'text-amber-400'
-							: 'text-emerald-400'}
-				>
-					{stormStatus(data.storms)}
-				</dd>
+				<dd class={stormTone}>{stormStatus(data.storms)}</dd>
 			</div>
+			{#if stormsUnavailable}
+				<div class="flex gap-2">
+					<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">Missing</dt>
+					<dd class="text-neutral-400">{stormsUnavailable}</dd>
+				</div>
+			{/if}
 			{#if data.storms}
 				<div class="flex gap-2">
 					<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">Thunder</dt>
