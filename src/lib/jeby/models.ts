@@ -167,6 +167,39 @@ export interface WeatherPhenomenon {
 	text: string;
 }
 
+// One predicted high or low water.
+export interface TideEvent {
+	// 'High' or 'Low', ready to print.
+	type: string;
+	at: string;
+	height: Measurement;
+}
+
+// Tide predictions for the day. The station is Vineyard Haven, which publishes
+// predictions but has no water-level sensor — so these are a harmonic model,
+// never a measured height.
+export interface Tides {
+	station: string;
+	stationName: string;
+	// What the heights are measured from. Without it a height means nothing:
+	// 0.5 m above MLLW is not 0.5 m of water under the keel.
+	datum: string;
+	// What the water is doing right now, ready to print: 'Rising', 'Falling', or
+	// 'High'/'Low' when we're near enough a turn that the tide is standing —
+	// around the turn the level barely moves, and "rising" would misdescribe it.
+	state: string | null;
+	// Whichever tide comes first, so there's no need to compare two timestamps.
+	// Always the same event as nextHigh or nextLow; when a tide is happening now,
+	// this is that tide.
+	next: TideEvent | null;
+	// The next of each still ahead, or null when the prediction window doesn't
+	// reach one. They point into `today`, not to extra information.
+	nextHigh: TideEvent | null;
+	nextLow: TideEvent | null;
+	// Every high and low falling today, oldest first, including ones already past.
+	today: TideEvent[];
+}
+
 // One forecast period — "Today", "Tonight", "Wednesday" — over the window it
 // covers, flagged for whether its wording calls for storms.
 export interface StormPeriod {

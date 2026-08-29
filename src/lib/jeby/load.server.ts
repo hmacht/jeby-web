@@ -44,6 +44,7 @@ export async function loadReport({ fetch, url, setHeaders }: ReportEvent) {
 	const stationsPending = jeby.stations();
 	const weatherPending = jeby.currentWeather();
 	const stormsPending = jeby.storms();
+	const tidesPending = jeby.tides();
 
 	const vessels = (await jeby.vessels()) ?? [];
 
@@ -56,15 +57,17 @@ export async function loadReport({ fetch, url, setHeaders }: ReportEvent) {
 		vessels[0];
 	const vesselCode = selected?.code ?? DEFAULT_VESSEL;
 
-	const [conditions, forecast, alerts, images, stations, weather, storms] = await Promise.all([
-		jeby.conditions(vesselCode),
-		forecastPending,
-		alertsPending,
-		imagesPending,
-		stationsPending,
-		weatherPending,
-		stormsPending
-	]);
+	const [conditions, forecast, alerts, images, stations, weather, storms, tides] =
+		await Promise.all([
+			jeby.conditions(vesselCode),
+			forecastPending,
+			alertsPending,
+			imagesPending,
+			stationsPending,
+			weatherPending,
+			stormsPending,
+			tidesPending
+		]);
 
 	return {
 		location: LOCATION,
@@ -78,6 +81,7 @@ export async function loadReport({ fetch, url, setHeaders }: ReportEvent) {
 		asitcam2: images?.asitcam2 ?? null,
 		stations: stations ?? [],
 		weather,
-		storms
+		storms,
+		tides
 	};
 }

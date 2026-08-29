@@ -9,6 +9,7 @@ import type {
 	Images,
 	Station,
 	Storms,
+	Tides,
 	Vessel,
 	Weather
 } from '$lib/jeby/models';
@@ -58,6 +59,9 @@ export function createJebyClient(fetch: Fetch) {
 		},
 		activeAlerts() {
 			return getJSON<Alert[]>(fetch, '/marine/alerts');
+		},
+		tides() {
+			return getJSON<Tides>(fetch, '/marine/tides');
 		},
 		currentWeather() {
 			return getJSON<Weather>(fetch, '/weather/current');
