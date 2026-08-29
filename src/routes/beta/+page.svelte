@@ -382,6 +382,41 @@
 			</div>
 		</div>
 
+		<!-- Station cameras -->
+		{#if data.buoy360 || data.asitcam2}
+			<h2 class="mt-8 uppercase tracking-wide text-white">Images</h2>
+			<p aria-hidden="true" class="overflow-hidden whitespace-nowrap text-neutral-700">{SUBRULE}</p>
+			<!-- Butted together in a horizontal scroll on mobile, stacked full-width
+				from sm up. Sized by height there so neither frame is cropped and the
+				buoy's panorama simply runs long. -->
+			<div
+				class="mt-3 flex snap-x snap-mandatory gap-0.5 overflow-x-auto sm:block sm:space-y-6 sm:overflow-visible"
+			>
+				{#if data.buoy360}
+					<figure class="shrink-0 snap-start sm:w-auto">
+						<ZoomableImage
+							src={data.buoy360}
+							alt="Latest 360° view from the buoy camera"
+							class="h-52 w-auto max-w-none rounded-lg border border-border sm:h-auto sm:w-full sm:max-w-full"
+						/>
+						<figcaption class="mt-2 text-neutral-500">Latest 360° view from the buoy</figcaption>
+					</figure>
+				{/if}
+				{#if data.asitcam2}
+					<figure class="shrink-0 snap-start sm:w-auto">
+						<ZoomableImage
+							src={data.asitcam2}
+							alt="Latest view from the MVCO ASIT tower webcam"
+							class="h-52 w-auto max-w-none rounded-lg border border-border sm:h-auto sm:w-full sm:max-w-full"
+						/>
+						<figcaption class="mt-2 text-neutral-500">
+							Latest view from the MVCO ASIT tower
+						</figcaption>
+					</figure>
+				{/if}
+			</div>
+		{/if}
+
 		<!-- Storms: two independent questions, from two different sources. -->
 		<h2 class="mt-8 uppercase tracking-wide text-white">Storm Tracker</h2>
 		<p aria-hidden="true" class="overflow-hidden whitespace-nowrap text-neutral-700">{SUBRULE}</p>
@@ -470,41 +505,6 @@
 					</div>
 				{/each}
 			</dl>
-		{/if}
-
-		<!-- Station cameras -->
-		{#if data.buoy360 || data.asitcam2}
-			<h2 class="mt-8 uppercase tracking-wide text-white">Images</h2>
-			<p aria-hidden="true" class="overflow-hidden whitespace-nowrap text-neutral-700">{SUBRULE}</p>
-			<!-- Butted together in a horizontal scroll on mobile, stacked full-width
-				from sm up. Sized by height there so neither frame is cropped and the
-				buoy's panorama simply runs long. -->
-			<div
-				class="mt-3 flex snap-x snap-mandatory gap-0.5 overflow-x-auto sm:block sm:space-y-6 sm:overflow-visible"
-			>
-				{#if data.buoy360}
-					<figure class="shrink-0 snap-start sm:w-auto">
-						<ZoomableImage
-							src={data.buoy360}
-							alt="Latest 360° view from the buoy camera"
-							class="h-52 w-auto max-w-none rounded-lg border border-border sm:h-auto sm:w-full sm:max-w-full"
-						/>
-						<figcaption class="mt-2 text-neutral-500">Latest 360° view from the buoy</figcaption>
-					</figure>
-				{/if}
-				{#if data.asitcam2}
-					<figure class="shrink-0 snap-start sm:w-auto">
-						<ZoomableImage
-							src={data.asitcam2}
-							alt="Latest view from the MVCO ASIT tower webcam"
-							class="h-52 w-auto max-w-none rounded-lg border border-border sm:h-auto sm:w-full sm:max-w-full"
-						/>
-						<figcaption class="mt-2 text-neutral-500">
-							Latest view from the MVCO ASIT tower
-						</figcaption>
-					</figure>
-				{/if}
-			</div>
 		{/if}
 
 		<!-- Station data -->
