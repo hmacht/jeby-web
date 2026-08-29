@@ -9,6 +9,7 @@
 	import { resolve } from '$app/paths';
 	import { navigating, page } from '$app/state';
 	import Check from '@lucide/svelte/icons/check';
+	import CloudLightning from '@lucide/svelte/icons/cloud-lightning';
 	import Share from '@lucide/svelte/icons/share';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import ScoreBlocks from '$lib/ScoreBlocks.svelte';
@@ -22,13 +23,13 @@
 		isMvco,
 		stationConditions,
 		stationReadingRows,
-		stormLevel,
 		stormsMissing,
-		type Station
+		STATION_CODE,
+		type Station,
+		type TimedValue
 	} from '$lib/jeby/models';
-	import { stormStatus } from '$lib/jeby/report';
 	import { shimmer } from '$lib/shimmer';
-	import { cToF, metersToFeet } from '$lib/jeby/utils';
+	import { cToF, metersToFeet, mpsToMph } from '$lib/jeby/utils';
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 
@@ -82,27 +83,110 @@
 	const scoreText = $derived(
 		inQuietHours ? 'quiet hours' : score == null ? 'not computed yet' : `${score} /100`
 	);
+	// The headline splits the number from its denominator so the two can be sized
+	// apart. scoreText stays whole above, since the share sheet wants one string.
+	const scoreValue = $derived(
+		inQuietHours ? 'quiet hours' : score == null ? 'not computed yet' : `${score}`
+	);
+	const scoreOutOf = $derived(inQuietHours || score == null ? null : '/100');
 	const temp = $derived(
 		data.weather?.airTemp.value == null ? '—' : `${Math.round(cToF(data.weather.airTemp.value))}°`
 	);
 	const pct = (v: number | null) => (v == null ? '—' : `${Math.round(v)}%`);
 
-	// Green is reserved for a genuine all-clear; an unknown or an unreachable
-	// endpoint stays neutral rather than reading as good news.
-	const stormTone = $derived.by(() => {
-		switch (stormLevel(data.storms)) {
-			case 'now':
+	const degF = (celsius: number | null | undefined) =>
+		celsius == null ? '—' : `${Math.round(cToF(celsius))}°`;
+
+	// The NWS heat index scale, read off what it feels like rather than the air
+	// temperature — humidity carries most of the difference on a still afternoon.
+	// Note this is a heat scale, not a burn one: the weather endpoint carries no
+	// UV index, so nothing here speaks to how fast you'd burn.
+	const heatRisk = $derived.by(() => {
+		const feels = data.weather?.feelsLike.value;
+		if (feels == null) return { label: 'Unknown', tone: 'text-neutral-400' };
+		const deg = cToF(feels);
+		if (deg >= 125) return { label: 'Extreme Danger', tone: 'text-red-400' };
+		if (deg >= 103) return { label: 'Danger', tone: 'text-red-400' };
+		if (deg >= 90) return { label: 'Extreme Caution', tone: 'text-amber-400' };
+		if (deg >= 80) return { label: 'Caution', tone: 'text-amber-400' };
+		return { label: 'Low', tone: 'text-emerald-400' };
+	});
+
+	// Seas and wind out in the Sound, from the NOAA buoy rather than the MVCO
+	// tower — the buoy is the one moored in open water, so it's the reading that
+	// describes the crossing.
+	const buoy = $derived(stationConditions(conditions, STATION_CODE.buoy));
+	const soundWaveHeight = $derived(
+		buoy?.waveHeight.value == null ? '—' : `${metersToFeet(buoy.waveHeight.value).toFixed(1)} ft`
+	);
+	const soundWind = $derived(
+		buoy?.windSpeed.value == null
+			? '—'
+			: `${mpsToMph(buoy.windSpeed.value).toFixed(0)} mph${
+					buoy.windDirectionCardinal ? ` ${buoy.windDirectionCardinal}` : ''
+				}`
+	);
+
+	// Green is reserved for a genuine all clear. A null verdict means a source
+	// didn't answer, and stays neutral rather than reading as good news.
+	function stormTone(verdict: string | null): string {
+		switch (verdict) {
+			case 'Occurring':
 				return 'text-red-400';
-			case 'today':
+			case 'Likely':
 				return 'text-amber-400';
-			case 'clear':
+			case 'Possible':
+				return 'text-amber-400';
+			case 'None':
 				return 'text-emerald-400';
-			case 'unknown':
-			case 'unavailable':
+			default:
 				return 'text-neutral-400';
 		}
-	});
+	}
+	// Null is the one case the backend can't print for us: it means unchecked.
+	const verdict = (v: string | null) => v ?? 'Unknown';
+	// The icon flags a real storm, so a clear day and an unchecked source both
+	// get nothing — an icon on 'Unknown' would assert something we don't know.
+	const hasStorm = (v: string | null) => v != null && v !== 'None';
 	const stormsUnavailable = $derived(stormsMissing(data.storms));
+
+	// The forecast series run all day; three windows is as far ahead as the
+	// question "should I go out now" reaches. Filtering on `until` rather than
+	// `from` on purpose — the NWS collapses long stretches of one value into a
+	// single interval, so a window that began this morning can still be the one
+	// in effect.
+	function nextWindows(values: TimedValue[] | undefined, count = 3): TimedValue[] {
+		const now = Date.now();
+		return (values ?? []).filter((v) => new Date(v.until).getTime() > now).slice(0, count);
+	}
+
+	// Pinned to the island's timezone so the server and the browser format these
+	// identically — otherwise SSR and hydration disagree and the times flicker.
+	function clock(iso: string): string {
+		return new Date(iso)
+			.toLocaleTimeString('en-US', {
+				hour: 'numeric',
+				minute: '2-digit',
+				timeZone: 'America/New_York'
+			})
+			.replace(':00', '')
+			.replace(' ', '')
+			.toLowerCase();
+	}
+
+	function vineyardDay(iso: string): string {
+		return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date(iso));
+	}
+
+	// "11am–5pm", with the weekday appended when the window runs into another day
+	// — a 37-hour interval is normal here, and a bare end time would misread.
+	function windowRange(w: TimedValue): string {
+		const end =
+			vineyardDay(w.from) === vineyardDay(w.until)
+				? clock(w.until)
+				: `${clock(w.until)} ${new Date(w.until).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/New_York' })}`;
+		return `${clock(w.from)}–${end}`;
+	}
 
 	// Wave height per station, in feet, for the map's badges.
 	const stationWaveHeights = $derived.by(() => {
@@ -125,7 +209,7 @@
 	// Switching vessels re-runs the load via a URL query param, so the change is
 	// SSR-friendly and shareable.
 	function selectVessel(code: string) {
-		goto(resolve(`/oldschool?vessel=${encodeURIComponent(code)}`), {
+		goto(resolve(`/beta?vessel=${encodeURIComponent(code)}`), {
 			keepFocus: true,
 			noScroll: true
 		});
@@ -161,6 +245,8 @@
 
 	const RULE = '='.repeat(40);
 	const SUBRULE = '-'.repeat(40);
+	// Lighter again than SUBRULE, for splitting subsections inside one section.
+	const DOTRULE = '·'.repeat(40);
 	// Held as a value so the spacing survives the template's whitespace handling.
 	const TICKS = '0        25        50        75       100';
 	const TITLE = 'The Jeby Report';
@@ -173,38 +259,29 @@
 
 <main class="min-h-screen px-4 pt-10 text-white sm:px-12 lg:px-16">
 	<div class="mx-auto max-w-4xl font-mono text-sm leading-relaxed text-neutral-300">
-		<!-- Controls -->
+		<!-- Controls: vessel picker on the left, share on the right. -->
 		<div class="flex flex-wrap items-center justify-between gap-4 pb-8">
-			<a
-				href={resolve('/')}
-				class="text-neutral-500 underline underline-offset-4 transition hover:text-neutral-300"
+			<VesselSelect
+				vessels={data.vessels}
+				selected={data.selectedVessel}
+				disabled={loading || data.vessels.length === 0}
+				onSelect={selectVessel}
+				class="w-48 sm:w-56"
+			/>
+
+			<button
+				type="button"
+				onclick={share}
+				aria-label="Share this report"
+				title="Share this report"
+				class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-neutral-300 transition hover:border-neutral-500 hover:text-white"
 			>
-				&larr; Back to the report
-			</a>
-
-			<div class="flex items-center gap-3">
-				<button
-					type="button"
-					onclick={share}
-					aria-label="Share this report"
-					title="Share this report"
-					class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-neutral-300 transition hover:border-neutral-500 hover:text-white"
-				>
-					{#if copied}
-						<Check size={16} class="shrink-0 text-emerald-400" />
-					{:else}
-						<Share size={16} class="shrink-0" />
-					{/if}
-				</button>
-
-				<VesselSelect
-					vessels={data.vessels}
-					selected={data.selectedVessel}
-					disabled={loading || data.vessels.length === 0}
-					onSelect={selectVessel}
-					class="w-48 sm:w-56"
-				/>
-			</div>
+				{#if copied}
+					<Check size={16} class="shrink-0 text-emerald-400" />
+				{:else}
+					<Share size={16} class="shrink-0" />
+				{/if}
+			</button>
 		</div>
 
 		<!-- The masthead through the score bar on the left, the sea alongside it. -->
@@ -226,12 +303,24 @@
 					{/each}
 				</div>
 
-				<!-- Score, vessel, weather -->
+				<!-- The score stands on its own at the left margin: it's the headline
+					number, and the label column would size it like a footnote. -->
+				<div class="mt-5">
+					<p class="text-neutral-500">BUMPYSCORE&trade;</p>
+					<!-- Flex so the gap is controlled rather than left to whitespace, and
+						baseline-aligned so the denominator sits on the number's baseline. -->
+					<p
+						class="mt-1 flex items-baseline gap-1.5 text-3xl font-semibold leading-none text-white"
+					>
+						<span>{scoreValue}</span>
+						{#if scoreOutOf}
+							<span class="text-base font-normal text-neutral-500">{scoreOutOf}</span>
+						{/if}
+					</p>
+				</div>
+
+				<!-- Vessel and weather -->
 				<dl class="mt-5">
-					<div class="flex gap-2">
-						<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">BUMPYSCORE</dt>
-						<dd class="font-semibold text-white">{scoreText}</dd>
-					</div>
 					{#if vessel}
 						<div class="flex gap-2">
 							<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">TUNED FOR</dt>
@@ -252,6 +341,14 @@
 							<span>{temp}{data.weather?.summary ? `  ${data.weather.summary}` : ''}</span>
 						</dd>
 					</div>
+					<div class="flex gap-2">
+						<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">WAVE HEIGHT</dt>
+						<dd>{soundWaveHeight}</dd>
+					</div>
+					<div class="flex gap-2">
+						<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">WIND SPEED</dt>
+						<dd>{soundWind}</dd>
+					</div>
 				</dl>
 
 				<!-- The score on its scale, each block shaded by where it sits. -->
@@ -270,7 +367,7 @@
 
 		<!-- The AI's read -->
 		<h2 class="mt-8 flex items-center gap-1.5 uppercase tracking-wide text-white">
-			<Sparkles size={14} color="url(#oldschool-sparkle)" class="shrink-0" />
+			<Sparkles size={14} color="url(#beta-sparkle)" class="shrink-0" />
 			AI Analysis
 		</h2>
 		<p aria-hidden="true" class="overflow-hidden whitespace-nowrap text-neutral-700">{SUBRULE}</p>
@@ -285,37 +382,95 @@
 			</div>
 		</div>
 
-		<!-- Storms -->
+		<!-- Storms: two independent questions, from two different sources. -->
 		<h2 class="mt-8 uppercase tracking-wide text-white">Storm Tracker</h2>
 		<p aria-hidden="true" class="overflow-hidden whitespace-nowrap text-neutral-700">{SUBRULE}</p>
-		<dl class="mt-2">
-			<div class="flex gap-2">
-				<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">Status</dt>
-				<dd class={stormTone}>{stormStatus(data.storms)}</dd>
-			</div>
-			{#if stormsUnavailable}
+
+		{#if stormsUnavailable}
+			<p class="mt-2 text-neutral-400">Could not reach {stormsUnavailable}.</p>
+		{/if}
+
+		{#if data.storms}
+			<!-- Now: what the airport is actually reporting. -->
+			<h3 class="mt-4 text-neutral-500">Now</h3>
+			<p class="text-neutral-600">Observed live at Martha&rsquo;s Vineyard Airport</p>
+			<dl class="mt-2">
 				<div class="flex gap-2">
-					<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">Missing</dt>
-					<dd class="text-neutral-400">{stormsUnavailable}</dd>
+					<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">Storm</dt>
+					<dd class={stormTone(data.storms.now.storm)}>
+						{verdict(data.storms.now.storm)}
+						{#if hasStorm(data.storms.now.storm)}
+							<CloudLightning size={14} class="ml-1 inline align-middle text-amber-400" />
+						{/if}
+						{#if data.storms.now.proximity}&middot; {data.storms.now.proximity}{/if}
+						{#if data.storms.now.raining != null}
+							&middot; {data.storms.now.raining ? 'raining' : 'no rain'}
+						{/if}
+					</dd>
 				</div>
-			{/if}
-			{#if data.storms}
+				<!-- Full width from the left margin rather than in the value column:
+					these are sentences, and the label column squeezes them. -->
+				{#if data.storms.now.because.length}
+					<div class="mt-2">
+						{#each data.storms.now.because as reason (reason)}
+							<dd>{reason}</dd>
+						{/each}
+					</div>
+				{/if}
+			</dl>
+
+			<!-- Today: what the forecast grid says is coming. -->
+			<p aria-hidden="true" class="mt-5 overflow-hidden whitespace-nowrap text-neutral-800">
+				{DOTRULE}
+			</p>
+			<h3 class="mt-4 text-neutral-500">Today&rsquo;s Forecast</h3>
+			<p class="text-neutral-600">From the National Weather Service</p>
+			<dl class="mt-2">
 				<div class="flex gap-2">
-					<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">Thunder</dt>
-					<dd>{pct(data.storms.thunderChance.value)}</dd>
+					<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">Storm</dt>
+					<dd class={stormTone(data.storms.today.storm)}>
+						{verdict(data.storms.today.storm)}
+						{#if hasStorm(data.storms.today.storm)}
+							<CloudLightning size={14} class="ml-1 inline align-middle text-amber-400" />
+						{/if}
+						{#if data.storms.today.confidence}&middot; {data.storms.today.confidence}{/if}
+					</dd>
 				</div>
-				<div class="flex gap-2">
-					<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">Precipitation</dt>
-					<dd>{pct(data.storms.precipitationChance.value)}</dd>
-				</div>
+				{#if data.storms.today.because.length}
+					<div class="mt-2">
+						{#each data.storms.today.because as reason (reason)}
+							<dd>{reason}</dd>
+						{/each}
+					</div>
+				{/if}
+
+				<!-- The next few windows of each series, each with the range it covers. -->
+				{#each [{ label: 'Thunder', series: data.storms.thunderChance }, { label: 'Precipitation', series: data.storms.precipitationChance }, { label: 'Sky Cover', series: data.storms.skyCover }] as row (row.label)}
+					<div class="mt-2 flex gap-2">
+						<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">{row.label}</dt>
+						<dd>
+							{#each nextWindows(row.series) as w (w.from)}
+								<div class="flex gap-2">
+									<span class="w-32 shrink-0 whitespace-nowrap text-neutral-500">
+										{windowRange(w)}
+									</span>
+									<span>{pct(w.value)}</span>
+								</div>
+							{:else}
+								<div>&mdash;</div>
+							{/each}
+						</dd>
+					</div>
+				{/each}
+
 				{#each data.storms.outlook as period (period.name)}
 					<div class="flex gap-2">
 						<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">{period.name}</dt>
 						<dd class={period.stormy ? 'text-amber-400' : ''}>{period.forecast}</dd>
 					</div>
 				{/each}
-			{/if}
-		</dl>
+			</dl>
+		{/if}
 
 		<!-- Station cameras -->
 		{#if data.buoy360 || data.asitcam2}
@@ -389,13 +544,57 @@
 				</div>
 			{/if}
 		</div>
+
+		<!-- Marine forecast, as the NWS words it. The periods are paragraphs, so
+			each sits under its own heading rather than in a value column. -->
+		<h2 class="mt-8 uppercase tracking-wide text-white">Marine Forecast</h2>
+		<p aria-hidden="true" class="overflow-hidden whitespace-nowrap text-neutral-700">{SUBRULE}</p>
+		<p class="text-neutral-600">From the National Weather Service</p>
+		<dl class="mt-3">
+			{#each (data.forecast?.periods ?? []).slice(0, 3) as period (period.header)}
+				<div class="mt-3">
+					<dt class="text-neutral-500">{period.header}</dt>
+					<dd>{period.text}</dd>
+				</div>
+			{:else}
+				<p class="text-neutral-400">Marine forecast unavailable right now.</p>
+			{/each}
+		</dl>
+
+		<!-- Sun safety: the heat side of the observation, since a long day on the
+			water is where this one bites. -->
+		<h2 class="mt-8 uppercase tracking-wide text-white">Sun Safety</h2>
+		<p aria-hidden="true" class="overflow-hidden whitespace-nowrap text-neutral-700">{SUBRULE}</p>
+		<p class="text-neutral-600">Observed live at Martha&rsquo;s Vineyard Airport</p>
+		<dl class="mt-2">
+			<div class="flex gap-2">
+				<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">Heat Risk</dt>
+				<dd class={heatRisk.tone}>{heatRisk.label}</dd>
+			</div>
+			<div class="flex gap-2">
+				<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">Feels Like</dt>
+				<dd>{degF(data.weather?.feelsLike.value)}</dd>
+			</div>
+			<div class="flex gap-2">
+				<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">Air Temp</dt>
+				<dd>{degF(data.weather?.airTemp.value)}</dd>
+			</div>
+			<div class="flex gap-2">
+				<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">Humidity</dt>
+				<dd>{pct(data.weather?.humidity.value ?? null)}</dd>
+			</div>
+			<div class="flex gap-2">
+				<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">Dewpoint</dt>
+				<dd>{degF(data.weather?.dewpoint.value)}</dd>
+			</div>
+		</dl>
 	</div>
 </main>
 
 <!-- Gradient (light → dark blue) for the sparkle above. -->
 <svg aria-hidden="true" width="0" height="0" class="absolute">
 	<defs>
-		<linearGradient id="oldschool-sparkle" x1="0" y1="0" x2="1" y2="1">
+		<linearGradient id="beta-sparkle" x1="0" y1="0" x2="1" y2="1">
 			<stop offset="0%" stop-color="#7dd3fc" />
 			<stop offset="100%" stop-color="#1d4ed8" />
 		</linearGradient>

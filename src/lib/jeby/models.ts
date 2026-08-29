@@ -167,47 +167,75 @@ export interface WeatherPhenomenon {
 	text: string;
 }
 
-// One forecast period, flagged for whether its wording calls for storms.
+// One forecast period — "Today", "Tonight", "Wednesday" — over the window it
+// covers, flagged for whether its wording calls for storms.
 export interface StormPeriod {
 	name: string;
+	from: string;
+	until: string;
 	forecast: string;
 	stormy: boolean;
 }
 
-// The combined storm picture: two quick flags plus the evidence behind them.
+// One forecast quantity over the window it applies to. The backend renders both
+// instants in Vineyard local time, offset included.
+export interface TimedValue {
+	value: number;
+	unit: string;
+	from: string;
+	until: string;
+}
+
+// Whether it's storming right now, from the airport observation and the alerts
+// feed.
+export interface StormNow {
+	// 'Occurring' or 'None', ready to print — and null when a source was
+	// unavailable, because 'None' must never stand in for "we couldn't check".
+	storm: string | null;
+	// 'Overhead' or 'Nearby' on an occurring storm, else null.
+	proximity: string | null;
+	// Whether rain is falling with it. A dry thunderstorm is a real state.
+	raining: boolean | null;
+	// The evidence in plain sentences, so the UI can show its work. Never empty.
+	because: string[];
+}
+
+// Whether a storm is expected today, from the forecast grid. Graded on every
+// request, including while one is already occurring — the two questions never
+// suppress each other.
+export interface StormToday {
+	// 'Likely', 'Possible' or 'None', ready to print, null when the grid was
+	// unavailable.
+	storm: string | null;
+	// The NWS coverage term behind a Possible or Likely: 'Slight Chance',
+	// 'Chance', 'Likely', 'Definite'. Null when there's no storm to qualify.
+	confidence: string | null;
+	because: string[];
+}
+
+// The storm picture: what's happening now, and what today's forecast says.
+//
+// The series are already trimmed by the backend — probabilities to the current
+// Vineyard day, the outlook to the next two periods — but every entry keeps the
+// real window it applies to, which can start before midnight or run past it. So
+// render from/until rather than assuming a label.
 export interface Storms {
-	// Tri-state, matching the backend: true means a storm was found, false means
-	// every source answered and none of them did, and null means a source we
-	// needed was unavailable — we don't know. Never treat null as false; that
-	// renders an all-clear to someone deciding whether to leave the harbor.
-	stormNow: boolean | null;
-	stormExpectedToday: boolean | null;
+	// Two independent answers to two independent questions, from two different
+	// sources. An outage in one doesn't blind you to the other.
+	now: StormNow;
+	today: StormToday;
 	// The sources that didn't answer, empty when everything did. Any entry means
 	// the evidence below is partial.
 	unavailable: string[];
 	observed: WeatherPhenomenon[];
 	alerts: Alert[];
-	// Highest chance across the rest of today.
-	thunderChance: Measurement;
-	precipitationChance: Measurement;
+	// Forecast series in effect at some point today, oldest window first.
+	thunderChance: TimedValue[];
+	precipitationChance: TimedValue[];
+	skyCover: TimedValue[];
+	// The strongest gust forecast for today, or null if the grid didn't say.
+	peakGust: TimedValue | null;
 	outlook: StormPeriod[];
-}
-
-// The storm picture collapsed to the one state the UI paints. 'unavailable' is
-// the whole endpoint being down; 'unknown' is reaching it but having a source
-// we needed go missing.
-export type StormLevel = 'now' | 'today' | 'unknown' | 'clear' | 'unavailable';
-
-// Precedence mirrors the backend's: a storm we actually found outranks a source
-// that went missing, and a missing source outranks an all-clear. The last step
-// is the point of the tri-state — 'clear' has to mean every source answered and
-// none saw a storm, not merely that nothing came back true.
-export function stormLevel(storms: Storms | null): StormLevel {
-	if (!storms) return 'unavailable';
-	if (storms.stormNow === true) return 'now';
-	if (storms.stormExpectedToday === true) return 'today';
-	if (storms.stormNow == null || storms.stormExpectedToday == null) return 'unknown';
-	return 'clear';
 }
 
 // Backend source names, in the words the report uses for them.

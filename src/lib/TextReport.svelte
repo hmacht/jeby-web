@@ -1,6 +1,6 @@
 <script lang="ts">
 	// The report printout in a modal, with a copy button. The text itself is built
-	// in jeby/report.ts, which the /oldschool page renders too.
+	// in jeby/report.ts, which the /beta page renders too.
 	import Check from '@lucide/svelte/icons/check';
 	import Copy from '@lucide/svelte/icons/copy';
 	import ScrollText from '@lucide/svelte/icons/scroll-text';

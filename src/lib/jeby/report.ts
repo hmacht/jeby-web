@@ -10,13 +10,13 @@ import {
 	isMvco,
 	stationConditions,
 	stationReadingRows,
-	stormLevel,
 	stormsMissing,
 	type Alert,
 	type BumpyAnalysis,
 	type Conditions,
 	type Station,
 	type Storms,
+	type TimedValue,
 	type Vessel,
 	type Weather
 } from '$lib/jeby/models';
@@ -36,20 +36,12 @@ export interface ReportInput {
 	conditions: Conditions | null;
 }
 
-// The storm picture in one line, the way the tracker card puts it.
+// The storm picture in one line. The backend answers "now" and "today"
+// separately and writes both ready to print, so this just joins them; null means
+// a source went unchecked, which must not read as an all clear.
 export function stormStatus(storms: Storms | null): string {
-	switch (stormLevel(storms)) {
-		case 'unavailable':
-			return 'Unavailable';
-		case 'now':
-			return 'Storming now';
-		case 'today':
-			return 'Storms expected today';
-		case 'unknown':
-			return 'Unknown';
-		case 'clear':
-			return 'No storms expected';
-	}
+	if (!storms) return 'Unavailable';
+	return `${storms.now.storm ?? 'Unknown'} now, ${storms.today.storm ?? 'Unknown'} today`;
 }
 
 // Everything is drawn to a fixed column width so the bar, its scale, and the
@@ -176,8 +168,10 @@ export function buildReport(input: ReportInput, plainText = false): string {
 		const missing = stormsMissing(storms);
 		if (missing) lines.push(...wrap(`Could not reach ${missing}.`));
 		const pct = (v: number | null) => (v == null ? '—' : `${Math.round(v)}%`);
-		lines.push(`  ${'Thunder'.padEnd(14)}${pct(storms.thunderChance.value)}`);
-		lines.push(`  ${'Precipitation'.padEnd(14)}${pct(storms.precipitationChance.value)}`);
+		// The series run all day; the window in effect is the one worth printing.
+		const current = (series: TimedValue[]) => (series.length ? pct(series[0].value) : '—');
+		lines.push(`  ${'Thunder'.padEnd(14)}${current(storms.thunderChance)}`);
+		lines.push(`  ${'Precipitation'.padEnd(14)}${current(storms.precipitationChance)}`);
 		for (const period of storms.outlook) {
 			lines.push(`  ${period.name.padEnd(14)}${period.forecast}`);
 		}
