@@ -36,6 +36,7 @@
 		type TideEvent,
 		type TimedValue
 	} from '$lib/jeby/models';
+	import ogImage from '$lib/assets/jeby_open_web.png';
 	import { shimmer } from '$lib/shimmer';
 	import { cToF, metersToFeet, mpsToMph } from '$lib/jeby/utils';
 	import { onMount } from 'svelte';
@@ -294,11 +295,33 @@
 	// Held as a value so the spacing survives the template's whitespace handling.
 	const TICKS = '0        25        50        75       100';
 	const TITLE = 'The Jeby Report';
+	const DESCRIPTION = $derived(`Live marine conditions and a BumpyScore™ for ${data.location}.`);
+	// Scrapers won't resolve a relative path, so the preview image has to go out
+	// absolute — built from the request's own origin rather than a hardcoded host.
+	const ogImageUrl = $derived(new URL(ogImage, page.url.origin).href);
 </script>
 
 <svelte:head>
 	<title>{TITLE}</title>
-	<meta name="description" content="The Jeby Report as a plain-text printout." />
+	<meta name="description" content={DESCRIPTION} />
+
+	<!-- Open Graph -->
+	<meta property="og:type" content="website" />
+	<meta property="og:title" content={TITLE} />
+	<meta property="og:description" content={DESCRIPTION} />
+	<meta property="og:image" content={ogImageUrl} />
+	<!-- Must match the file on disk: scrapers reserve layout from these before the
+		image lands, and a wrong value is worse than none. Re-check when swapping
+		the asset. -->
+	<meta property="og:image:width" content="896" />
+	<meta property="og:image:height" content="540" />
+	<meta property="og:url" content={page.url.href} />
+
+	<!-- Twitter -->
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content={TITLE} />
+	<meta name="twitter:description" content={DESCRIPTION} />
+	<meta name="twitter:image" content={ogImageUrl} />
 </svelte:head>
 
 <main class="min-h-screen px-4 pt-10 text-white sm:px-12 lg:px-16">
