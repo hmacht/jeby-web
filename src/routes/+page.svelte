@@ -191,6 +191,16 @@
 	const hasStorm = (v: string | null) => v != null && v !== 'None';
 	const stormsUnavailable = $derived(stormsMissing(data.storms));
 
+	// A "None" verdict with warnings active is not an all clear. The backend now
+	// reads Now from the airport observation alone — deliberately, since a Small
+	// Craft Advisory is not a storm occurring — which means a warning over water
+	// the station can't see lands here as None. Green would be a lie in that case.
+	const nowTone = $derived.by(() => {
+		const now = data.storms?.now.storm ?? null;
+		if (now === 'None' && (data.storms?.alerts.length ?? 0) > 0) return 'text-amber-400';
+		return stormTone(now);
+	});
+
 	// The forecast series run all day; three windows is as far ahead as the
 	// question "should I go out now" reaches. Filtering on `until` rather than
 	// `from` on purpose — the NWS collapses long stretches of one value into a
@@ -465,28 +475,31 @@
 		{#if data.buoy360 || data.asitcam2}
 			<h2 class="mt-8 uppercase tracking-wide text-white">Images</h2>
 			<p aria-hidden="true" class="overflow-hidden whitespace-nowrap text-neutral-700">{SUBRULE}</p>
-			<!-- Butted together in a horizontal scroll on mobile, stacked full-width
-				from sm up. Sized by height there so neither frame is cropped and the
-				buoy's panorama simply runs long. -->
-			<div
-				class="mt-3 flex snap-x snap-mandatory gap-0.5 overflow-x-auto sm:block sm:space-y-6 sm:overflow-visible"
-			>
+			<!-- Stacked at every width. Only the buoy scrolls sideways on mobile:
+				it's a 360° panorama, so it's held at a readable height and allowed to
+				run long rather than shrinking to a sliver. The tower is an ordinary
+				frame and just fits the column. -->
+			<div class="mt-3 space-y-6">
 				{#if data.buoy360}
-					<figure class="shrink-0 snap-start sm:w-auto">
-						<ZoomableImage
-							src={data.buoy360}
-							alt="Latest 360° view from the buoy camera"
-							class="h-52 w-auto max-w-none rounded-lg border border-border sm:h-auto sm:w-full sm:max-w-full"
-						/>
+					<figure>
+						<!-- Bleeds to the screen edges so the pan starts flush with the
+							page, matching the gutter main sets at this width. -->
+						<div class="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:overflow-visible sm:px-0">
+							<ZoomableImage
+								src={data.buoy360}
+								alt="Latest 360° view from the buoy camera"
+								class="h-52 w-auto max-w-none rounded-lg border border-border sm:h-auto sm:w-full sm:max-w-full"
+							/>
+						</div>
 						<figcaption class="mt-2 text-neutral-500">Latest 360° view from the buoy</figcaption>
 					</figure>
 				{/if}
 				{#if data.asitcam2}
-					<figure class="shrink-0 snap-start sm:w-auto">
+					<figure>
 						<ZoomableImage
 							src={data.asitcam2}
 							alt="Latest view from the MVCO ASIT tower webcam"
-							class="h-52 w-auto max-w-none rounded-lg border border-border sm:h-auto sm:w-full sm:max-w-full"
+							class="h-auto w-full rounded-lg border border-border"
 						/>
 						<figcaption class="mt-2 text-neutral-500">
 							Latest view from the MVCO ASIT tower
@@ -511,11 +524,10 @@
 			<dl class="mt-2">
 				<div class="flex gap-2">
 					<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">Storm</dt>
-					<dd class={stormTone(data.storms.now.storm)}>
-						{verdict(data.storms.now.storm)}
+					<dd class={nowTone}>
 						{#if hasStorm(data.storms.now.storm)}
-							<CloudLightning size={14} class="ml-1 inline align-middle text-amber-400" />
-						{/if}
+							<CloudLightning size={14} class="mr-1 inline align-middle text-white" />
+						{/if}{verdict(data.storms.now.storm)}
 						{#if data.storms.now.proximity}&middot; {data.storms.now.proximity}{/if}
 						{#if data.storms.now.raining != null}
 							&middot; {data.storms.now.raining ? 'raining' : 'no rain'}
@@ -531,6 +543,17 @@
 						{/each}
 					</div>
 				{/if}
+				<!-- Active warnings belong beside the verdict, not only in the masthead.
+					Now is read from the airport alone, so a warning over water the station
+					can't see comes back as "None" — showing the verdict without these is
+					exactly how that false negative reaches someone. -->
+				{#if data.storms.alerts.length}
+					<div class="mt-2">
+						{#each data.storms.alerts as alert (alert.event + alert.description)}
+							<dd class="text-amber-400">! {alert.event}</dd>
+						{/each}
+					</div>
+				{/if}
 			</dl>
 
 			<!-- Today: what the forecast grid says is coming. -->
@@ -543,10 +566,9 @@
 				<div class="flex gap-2">
 					<dt class="w-40 shrink-0 whitespace-nowrap text-neutral-500">Storm</dt>
 					<dd class={stormTone(data.storms.today.storm)}>
-						{verdict(data.storms.today.storm)}
 						{#if hasStorm(data.storms.today.storm)}
-							<CloudLightning size={14} class="ml-1 inline align-middle text-amber-400" />
-						{/if}
+							<CloudLightning size={14} class="mr-1 inline align-middle text-white" />
+						{/if}{verdict(data.storms.today.storm)}
 						{#if data.storms.today.confidence}&middot; {data.storms.today.confidence}{/if}
 					</dd>
 				</div>
