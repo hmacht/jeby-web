@@ -1,12 +1,20 @@
 <script lang="ts">
+	import posthog from 'posthog-js';
+
 	let { src, alt, class: className = '' }: { src: string; alt: string; class?: string } = $props();
 
 	let open = $state(false);
 	let zoomed = $state(false);
 
 	function openViewer() {
+		posthog.capture('camera_image_expanded');
 		open = true;
 		zoomed = false;
+	}
+
+	function toggleZoom() {
+		zoomed = !zoomed;
+		posthog.capture('camera_image_zoom_toggled', { zoomed });
 	}
 
 	function close() {
@@ -60,7 +68,7 @@
 			type="button"
 			class="block"
 			aria-label={zoomed ? 'Zoom out' : 'Zoom in'}
-			onclick={() => (zoomed = !zoomed)}
+			onclick={toggleZoom}
 		>
 			<img
 				{src}

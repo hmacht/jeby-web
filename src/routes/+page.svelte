@@ -39,6 +39,7 @@
 	import { shimmer } from '$lib/shimmer';
 	import { cToF, metersToFeet, mpsToMph } from '$lib/jeby/utils';
 	import { onMount } from 'svelte';
+	import posthog from 'posthog-js';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -240,6 +241,7 @@
 	// A marker tap jumps to that station's readings rather than opening a sheet —
 	// they're already written out on this page.
 	function scrollToStation(station: Station) {
+		posthog.capture('station_selected', { station_code: station.code });
 		document
 			.getElementById(`station-${station.code}`)
 			?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -248,6 +250,7 @@
 	// Switching vessels re-runs the load via a URL query param, so the change is
 	// SSR-friendly and shareable.
 	function selectVessel(code: string) {
+		posthog.capture('vessel_selected', { vessel_code: code });
 		goto(resolve(`/?vessel=${encodeURIComponent(code)}`), {
 			keepFocus: true,
 			noScroll: true
@@ -272,12 +275,14 @@
 		if (navigator.share) {
 			try {
 				await navigator.share({ title: 'The Jeby Report', text: shareText, url });
+				posthog.capture('report_shared', { share_method: 'native' });
 				return;
 			} catch {
 				// Dismissed the sheet, or it refused — fall through to the clipboard.
 			}
 		}
 		await navigator.clipboard.writeText(`${shareText}\n${url}`);
+		posthog.capture('report_shared', { share_method: 'clipboard' });
 		copied = true;
 		setTimeout(() => (copied = false), 1500);
 	}
@@ -620,7 +625,10 @@
 				Predicted for {data.tides.stationName} &middot; heights above {data.tides.datum}
 				<button
 					type="button"
-					onclick={() => datumDialog?.showModal()}
+					onclick={() => {
+						posthog.capture('tide_datum_explained');
+						datumDialog?.showModal();
+					}}
 					aria-label="What {data.tides.datum} means"
 					class="pb-0.5 align-middle text-sky-400 transition hover:text-sky-300"
 				>
